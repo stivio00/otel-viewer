@@ -20,7 +20,13 @@ use crate::queries::{self, MetricDetailParams, MetricsParams, TracesParams};
 #[folder = "web/dist"]
 struct Assets;
 
-pub fn router(db: Arc<Db>) -> Router {
+/// Extra, non-DB metadata exposed by the API (bind addresses etc.).
+#[derive(Clone)]
+pub struct Meta {
+    pub otlp_addr: Option<String>,
+}
+
+pub fn router(db: Arc<Db>, meta: Meta) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/stats", get(stats))
@@ -34,6 +40,7 @@ pub fn router(db: Arc<Db>) -> Router {
         .route("/api/query", post(query))
         .fallback(not_found_or_static)
         .layer(CorsLayer::very_permissive())
+        .layer(axum::Extension(meta))
         .with_state(db)
 }
 
@@ -41,10 +48,14 @@ pub fn router(db: Arc<Db>) -> Router {
 // Handlers
 // ---------------------------------------------------------------------------
 
-async fn health(State(db): State<Arc<Db>>) -> Json<serde_json::Value> {
+async fn health(
+    State(db): State<Arc<Db>>,
+    axum::Extension(meta): axum::Extension<Meta>,
+) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "ok",
         "db_file": db.db_file(),
+        "otlp_addr": meta.otlp_addr,
         "version": env!("CARGO_PKG_VERSION"),
     }))
 }

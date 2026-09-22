@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { Activity, Moon, RefreshCw, Sun } from "lucide-react"
 
-import { fetchStats } from "@/lib/api"
+import { fetchHealth, fetchStats } from "@/lib/api"
 import { useUi, type Preset, type TimeRange } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,6 +45,11 @@ export function AppHeader() {
     queryFn: fetchStats,
     refetchInterval: 5_000,
   })
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    staleTime: 60_000,
+  })
   const theme = useUi((s) => s.theme)
   const toggleTheme = useUi((s) => s.toggleTheme)
   const preset = useUi((s) => s.preset)
@@ -69,6 +74,25 @@ export function AppHeader() {
         <StatChip label="metrics" value={String(stats?.metrics ?? 0)} />
         <StatChip label="services" value={String(stats?.services ?? 0)} />
       </div>
+
+      {health?.otlp_addr && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              className="bg-muted/60 hidden items-center gap-1.5 rounded-md px-2 py-1 xl:flex"
+              onClick={() =>
+                navigator.clipboard?.writeText(`http://${health.otlp_addr}`).catch(() => {})
+              }
+            >
+              <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
+                otlp
+              </span>
+              <span className="font-mono text-xs font-semibold">{health.otlp_addr}</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>OTLP/gRPC endpoint — click to copy</TooltipContent>
+        </Tooltip>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
         <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>

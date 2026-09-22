@@ -1,4 +1,6 @@
 /target
+/src-tauri/target
+/src-tauri/gen/schemas
 node_modules/
 web/dist/
 *.duckdb

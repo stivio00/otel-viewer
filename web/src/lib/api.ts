@@ -2,6 +2,7 @@ export interface Health {
   status: string
   version: string
   db_file: string | null
+  otlp_addr: string | null
 }
 
 export interface Stats {

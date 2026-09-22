@@ -47,6 +47,10 @@ pub async fn run(
         l.set_nonblocking(true)?;
         tokio::net::TcpListener::from_std(l)?
     };
+    let otlp_addr = grpc_listener
+        .local_addr()
+        .ok()
+        .map(|a| a.to_string());
     let grpc_listener = {
         let l = grpc_listener;
         l.set_nonblocking(true)?;
@@ -73,7 +77,7 @@ pub async fn run(
         let shutdown = shutdown.clone();
         let db = db.clone();
         tasks.spawn(async move {
-            let app = api::router(db);
+            let app = api::router(db, api::Meta { otlp_addr });
             tokio::select! {
                 r = axum::serve(http_listener, app) => {
                     r.context("HTTP server failed")

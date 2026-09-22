@@ -56,6 +56,29 @@ Telemetry is emitted under `service.name=locust`.
 - Per-signal overrides: `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER` (accept `otlp`, `console`, `none`)
 - Quick debug without a collector: `OTEL_TRACES_EXPORTER=console uv run aiolocust ...`
 
+### Plotting users/RPS/latency over time
+
+The OTel SDK's default metric export interval is **60 s**, so short tests emit only one or two points — too coarse to plot ramp-up, RPS, or p95 over time. Lower the interval (milliseconds) and prefer delta temporality so each point is a per-interval histogram delta:
+
+```bash
+OTEL_METRIC_EXPORT_INTERVAL=1000 \
+OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta \
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+uv run aiolocust --host http://localhost:8000 --users 10 --duration 30
+```
+
+- `OTEL_METRIC_EXPORT_INTERVAL=1000` → one point per second; the `locust.current_users` gauge also captures ramp-up instead of missing it
+- `...TEMPORALITY_PREFERENCE=delta` → each point is a per-interval delta. The default is `cumulative`: every point's `count` is the total since test start, so RPS must be computed as Δcount/Δt between consecutive points — treating cumulative counts as per-second values makes "RPS" grow linearly for the whole test, and dividing by the point's own window makes it decay toward the mean
+- Caveat: `OTEL_METRICS_EXPORTER=console` ignores the temporality preference (always cumulative), so don't debug RPS math with the console exporter
+
+Computing RPS and p95 from `locust.client.duration` (unit: seconds):
+
+- Read `aggregation_temporality` from the data instead of assuming: `delta` (1) → RPS per point = Σ `count` / (`time_unix_nano` − `start_time_unix_nano`); `cumulative` (2) → diff consecutive points first
+- Sum `count` across **all data points** of an export — failed requests form a separate series carrying an extra `error.type` attribute, so a single series underestimates RPS whenever errors occur
+- Use the point's own timestamps, not the configured interval — windows drift slightly (first window is partial, and one extra point is flushed at shutdown)
+- p95 comes from `bucket_counts` + `explicit_bounds`; boundaries are 1/2/5/10/20/50 ms, ... so resolution is good once points are frequent
+
 ## Notes
 
 - Quick API sanity check:
