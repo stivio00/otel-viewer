@@ -105,3 +105,7 @@ See [AGENTS.md](AGENTS.md) for repository conventions and gotchas.
 | `POST /api/reset` | delete all telemetry data |
 
 Full reference: [docs/rest-api.md](docs/rest-api.md).
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
