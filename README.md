@@ -31,7 +31,8 @@ Docs: <https://stivio00.github.io/otel-viewer/> (source in [docs/](docs/)).
   filters, line/point/bar/histogram/gauge/stat/heatmap panels
 - **Storage info** — file size, block usage, per-table sizes (header `(i)`)
 - **Reset** — delete all telemetry data from the UI
-- Demo data seeding, CORS-free same-origin UI, live auto-refresh
+- Demo data seeding, CORS-free same-origin UI, selectable auto-refresh
+  (off / 100ms / 500ms / 1s / 2s / 5s / 10s)
 
 ## Screenshots
 

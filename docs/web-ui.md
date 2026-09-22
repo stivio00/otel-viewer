@@ -28,6 +28,8 @@ selector live in the header.
 - **traces/spans/logs/metrics/services** — live counters (5s poll)
 - **otlp** — the OTLP/gRPC endpoint; click to copy
 - time range + layout preset selectors
+- **auto-refresh selector** — refetch everything on an interval
+  (off / 100ms / 500ms / 1s / 2s / 5s / 10s)
 - **refresh** — refetch everything now
 - **trash** — reset the database: click once to arm (button turns red, 4s
   window), click again to delete all telemetry data. `POST /api/reset`.

@@ -1,9 +1,9 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Activity, Info, Moon, RefreshCw, Sun, Trash2 } from "lucide-react"
+import { Activity, Info, Moon, RefreshCw, Sun, Timer, Trash2 } from "lucide-react"
 
 import { fetchDbStats, fetchHealth, fetchStats, resetDb } from "@/lib/api"
-import { useUi, type Preset, type TimeRange } from "@/lib/store"
+import { AUTO_REFRESH_OPTIONS, useUi, type Preset, type TimeRange } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -134,12 +134,22 @@ export function AppHeader() {
   const timeRange = useUi((s) => s.timeRange)
   const setTimeRange = useUi((s) => s.setTimeRange)
   const refresh = useUi((s) => s.refresh)
+  const autoRefreshMs = useUi((s) => s.autoRefreshMs)
+  const setAutoRefreshMs = useUi((s) => s.setAutoRefreshMs)
   const queryClient = useQueryClient()
 
   const [confirmReset, setConfirmReset] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
   const resetTimer = useRef<number>(0)
   const [infoOpen, setInfoOpen] = useState(false)
+
+  // Auto-refresh: bump refreshTick (which all panel queries key on) on an
+  // interval. 0 = off.
+  useEffect(() => {
+    if (!autoRefreshMs) return
+    const id = window.setInterval(refresh, autoRefreshMs)
+    return () => window.clearInterval(id)
+  }, [autoRefreshMs, refresh])
 
   // window.confirm() is a silent no-op inside the Tauri webview, so the reset
   // button uses a two-step inline confirmation instead (armed for 4s).
@@ -222,6 +232,22 @@ export function AppHeader() {
             {PRESETS.map((p) => (
               <SelectItem key={p.value} value={p.value}>
                 {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={String(autoRefreshMs)} onValueChange={(v) => setAutoRefreshMs(Number(v))}>
+          <SelectTrigger size="sm" className="w-[92px]" title="Auto-refresh">
+            <div className="flex items-center gap-1.5">
+              <Timer className="text-muted-foreground size-3" />
+              <SelectValue />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            {AUTO_REFRESH_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={String(o.value)}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
