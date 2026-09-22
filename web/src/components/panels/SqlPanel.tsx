@@ -80,7 +80,7 @@ const EXAMPLES: Array<{ label: string; sql: string }> = [
   },
   {
     label: "Locust: requests per second",
-    sql: "-- Cumulative counters: rate = delta of hist_count between consecutive\n-- exports divided by the time between them, summed per endpoint series.\nWITH pts AS (\n  SELECT to_timestamp(ts_ns / 1e9) AS ts, ts_ns,\n         series_attributes AS series, hist_count AS cnt\n  FROM metric_points\n  WHERE metric_name = 'locust.client.duration' AND hist_count > 0\n),\nd AS (\n  SELECT ts,\n         (cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns)) /\n           nullif((ts_ns - lag(ts_ns) OVER (PARTITION BY series ORDER BY ts_ns)) / 1e9, 0) AS rps\n  FROM pts\n)\nSELECT ts, round(sum(rps), 2) AS rps\nFROM d\nWHERE rps IS NOT NULL AND rps >= 0\nGROUP BY ts\nORDER BY ts",
+    sql: "-- Cumulative counters, Prometheus-style: sum the per-series counter\n-- increase inside each 30s bucket, divide by the bucket width. Smooths\n-- jitter from irregular export intervals; counter resets clamp to 0.\nWITH pts AS (\n  SELECT ts_ns, series_attributes AS series, hist_count AS cnt\n  FROM metric_points\n  WHERE metric_name = 'locust.client.duration' AND hist_count > 0\n),\nd AS (\n  SELECT series, ts_ns,\n         greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS inc\n  FROM pts\n),\nb AS (\n  SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(ts_ns / 1e9)) AS ts, inc\n  FROM d\n  WHERE inc IS NOT NULL\n)\nSELECT ts, round(sum(inc) / 30.0, 2) AS rps\nFROM b\nGROUP BY ts\nORDER BY ts",
   },
 ]
 

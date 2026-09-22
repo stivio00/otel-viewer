@@ -52,9 +52,10 @@ ORDER BY ts_ns
 
 The panel's built-in examples also include a **latency p95 vs time** query
 (latest cumulative snapshot per 30s bucket, p95 read off the bucket counts)
-and a **requests per second** query (rate = delta of `hist_count` between
-consecutive exports divided by the time between them, per endpoint series).
-Open the SQL panel's example dropdown to run them as-is.
+and a **requests per second** query — Prometheus-style: per-series counter
+increase (`hist_count` deltas, resets clamped to 0) summed inside each 30s
+bucket and divided by the bucket width, which stays smooth even when export
+intervals jitter. Open the SQL panel's example dropdown to run them as-is.
 
 Users over time, charted automatically:
 
