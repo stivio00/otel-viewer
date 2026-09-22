@@ -748,6 +748,94 @@ pub fn stats(conn: &Connection, db_file: Option<&str>) -> anyhow::Result<StatsRe
     )
 }
 
+// ---------------------------------------------------------------------------
+// DuckDB storage stats (/api/dbstats)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct DbStatsResponse {
+    pub db_file: Option<String>,
+    pub file_size_bytes: Option<u64>,
+    pub database_size: Option<String>,
+    pub block_size: Option<i64>,
+    pub total_blocks: Option<i64>,
+    pub used_blocks: Option<i64>,
+    pub free_blocks: Option<i64>,
+    pub checkpoint_count: Option<i64>,
+    pub memory_bytes: Option<i64>,
+    pub tables: Vec<TableStats>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TableStats {
+    pub table_name: String,
+    pub estimated_size: Option<i64>,
+    pub column_count: Option<i64>,
+    pub index_count: Option<i64>,
+}
+
+/// Storage-level stats: file size, DuckDB block usage, per-table row
+/// estimates and memory. Column names from pragma_database_size() vary a bit
+/// across DuckDB versions, so they are read defensively (missing → null).
+pub fn db_stats(
+    conn: &Connection,
+    db_file: Option<&str>,
+    file_size_bytes: Option<u64>,
+) -> anyhow::Result<DbStatsResponse> {
+    let opt = |r: &Row, name: &str| r.get::<_, Option<i64>>(name).ok().flatten();
+
+    let (database_size, block_size, total_blocks, used_blocks, free_blocks, checkpoint_count) =
+        query_opt(conn, "SELECT * FROM pragma_database_size()", vec![], |r| {
+            Ok((
+                r.get::<_, Option<String>>("database_size")
+                    .ok()
+                    .flatten(),
+                opt(r, "block_size"),
+                opt(r, "total_blocks"),
+                opt(r, "used_blocks"),
+                opt(r, "free_blocks"),
+                opt(r, "checkpoint_count"),
+            ))
+        })?
+        .unwrap_or((None, None, None, None, None, None));
+
+    let memory_bytes = query_opt(
+        conn,
+        "SELECT sum(memory_usage_bytes) AS m FROM duckdb_memory()",
+        vec![],
+        |r| Ok(opt(r, "m")),
+    )?
+    .flatten();
+
+    let tables = collect_rows(
+        conn,
+        "SELECT table_name, estimated_size, column_count, index_count \
+         FROM duckdb_tables() WHERE schema_name = 'main' ORDER BY table_name",
+        vec![],
+        |r| {
+            Ok(TableStats {
+                table_name: r.get("table_name")?,
+                estimated_size: r.get("estimated_size")?,
+                column_count: r.get("column_count")?,
+                index_count: r.get("index_count")?,
+            })
+        },
+    )?;
+
+    Ok(DbStatsResponse {
+        db_file: db_file.map(str::to_string),
+        file_size_bytes,
+        database_size,
+        block_size,
+        total_blocks,
+        used_blocks,
+        free_blocks,
+        checkpoint_count,
+        memory_bytes,
+        tables,
+    })
+}
+
 pub fn schema(conn: &Connection) -> anyhow::Result<SchemaResponse> {
     let mut cols = collect_rows(
         conn,

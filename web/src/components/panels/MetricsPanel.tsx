@@ -388,11 +388,31 @@ function ExpBuckets({ buckets, zeroCount }: { buckets: unknown; zeroCount: numbe
   )
 }
 
-function SummaryQuantiles({ data }: { data: unknown }) {
+/** Quantiles come either as OTLP objects `{quantile, value}` or `[q, v]` pairs. */
+function parseQuantiles(data: unknown): Array<{ q: number; v: number }> {
   const parsed = parseJsonField(data)
-  const quantiles = Array.isArray(parsed)
-    ? (parsed as Array<[number, number]>)
-    : []
+  if (!Array.isArray(parsed)) return []
+  const out: Array<{ q: number; v: number }> = []
+  for (const entry of parsed) {
+    let q: number
+    let v: number
+    if (Array.isArray(entry) && entry.length >= 2) {
+      q = Number(entry[0])
+      v = Number(entry[1])
+    } else if (entry != null && typeof entry === "object") {
+      const o = entry as Record<string, unknown>
+      q = Number(o.quantile)
+      v = Number(o.value)
+    } else {
+      continue
+    }
+    if (Number.isFinite(q) && Number.isFinite(v)) out.push({ q, v })
+  }
+  return out.sort((a, b) => a.q - b.q)
+}
+
+function SummaryQuantiles({ data }: { data: unknown }) {
+  const quantiles = parseQuantiles(data)
   if (quantiles.length === 0) return null
   return (
     <div>
@@ -400,7 +420,7 @@ function SummaryQuantiles({ data }: { data: unknown }) {
         last point quantiles
       </p>
       <div className="overflow-hidden rounded-md border">
-        {quantiles.map(([q, v], i) => (
+        {quantiles.map(({ q, v }, i) => (
           <div
             key={i}
             className={cn(

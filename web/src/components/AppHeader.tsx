@@ -1,7 +1,8 @@
+import { useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Activity, Moon, RefreshCw, Sun, Trash2 } from "lucide-react"
+import { Activity, Info, Moon, RefreshCw, Sun, Trash2 } from "lucide-react"
 
-import { fetchHealth, fetchStats, resetDb } from "@/lib/api"
+import { fetchDbStats, fetchHealth, fetchStats, resetDb } from "@/lib/api"
 import { useUi, type Preset, type TimeRange } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,6 +40,81 @@ function StatChip({ label, value }: { label: string; value: string }) {
   )
 }
 
+function fmtBytes(n: number | null | undefined): string {
+  if (n == null) return "—"
+  if (n < 1024) return `${n} B`
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KiB`
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MiB`
+  return `${(n / 1024 ** 3).toFixed(2)} GiB`
+}
+
+function fmtNum(n: number | null | undefined): string {
+  return n == null ? "—" : n.toLocaleString()
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{label}</span>
+      <span className="text-xs font-semibold tabular-nums">{value}</span>
+    </div>
+  )
+}
+
+/** DuckDB storage info, toggled from the header (i) button. */
+function DbInfoPopover({ onClose }: { onClose: () => void }) {
+  const { data: db } = useQuery({
+    queryKey: ["dbstats"],
+    queryFn: fetchDbStats,
+    refetchInterval: 5_000,
+  })
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="bg-popover text-popover-foreground absolute top-11 right-2 z-50 w-90 max-w-[calc(100vw-16px)] rounded-md border p-3 shadow-lg">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-xs font-bold">DuckDB storage</span>
+          <span className="text-muted-foreground text-[10px]">live</span>
+        </div>
+        <div className="mb-2 border-b pb-2">
+          <InfoRow
+            label="file"
+            value={db?.db_file ? db.db_file.split("/").pop() ?? db.db_file : "in-memory"}
+          />
+          {db?.db_file && (
+            <div className="text-muted-foreground font-mono text-[10px] break-all">{db.db_file}</div>
+          )}
+        </div>
+        <div className="border-b pb-2">
+          <InfoRow label="file size" value={fmtBytes(db?.file_size_bytes)} />
+          <InfoRow label="db size" value={db?.database_size ?? "—"} />
+          <InfoRow
+            label="blocks"
+            value={`${fmtNum(db?.used_blocks)} used / ${fmtNum(db?.total_blocks)} (${fmtBytes(
+              db?.block_size
+            )} each)`}
+          />
+          <InfoRow label="free blocks" value={fmtNum(db?.free_blocks)} />
+          <InfoRow label="checkpoints" value={fmtNum(db?.checkpoint_count)} />
+          <InfoRow label="memory" value={fmtBytes(db?.memory_bytes)} />
+        </div>
+        <div className="mt-2 space-y-1">
+          <div className="text-muted-foreground text-[10px] tracking-wide uppercase">tables</div>
+          {db?.tables.map((t) => (
+            <div key={t.table_name} className="flex items-baseline justify-between gap-3">
+              <span className="font-mono text-xs">{t.table_name}</span>
+              <span className="text-muted-foreground text-[11px] tabular-nums">
+                {fmtNum(t.estimated_size)} rows · {fmtNum(t.column_count)} cols ·{" "}
+                {fmtNum(t.index_count)} idx
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 export function AppHeader() {
   const { data: stats } = useQuery({
     queryKey: ["stats"],
@@ -59,15 +135,32 @@ export function AppHeader() {
   const refresh = useUi((s) => s.refresh)
   const queryClient = useQueryClient()
 
-  const onReset = async () => {
-    if (!window.confirm("Delete ALL telemetry data (spans, logs, metrics)?")) return
-    try {
-      await resetDb()
-      await queryClient.invalidateQueries()
-      refresh()
-    } catch (e) {
-      window.alert(`Reset failed: ${e}`)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const resetTimer = useRef<number>(0)
+  const [infoOpen, setInfoOpen] = useState(false)
+
+  // window.confirm() is a silent no-op inside the Tauri webview, so the reset
+  // button uses a two-step inline confirmation instead (armed for 4s).
+  const onResetClick = () => {
+    setResetError(null)
+    if (!confirmReset) {
+      setConfirmReset(true)
+      window.clearTimeout(resetTimer.current)
+      resetTimer.current = window.setTimeout(() => setConfirmReset(false), 4000)
+      return
     }
+    window.clearTimeout(resetTimer.current)
+    setConfirmReset(false)
+    resetDb()
+      .then(async () => {
+        await queryClient.invalidateQueries()
+        refresh()
+      })
+      .catch((e: unknown) => {
+        setResetError(String(e))
+        window.setTimeout(() => setResetError(null), 4000)
+      })
   }
 
   return (
@@ -145,16 +238,21 @@ export function AppHeader() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="ghost"
+              variant={confirmReset ? "destructive" : "ghost"}
               size="icon-sm"
-              className="text-destructive hover:text-destructive"
-              onClick={onReset}
+              className={confirmReset ? undefined : "text-destructive hover:text-destructive"}
+              onClick={onResetClick}
             >
               <Trash2 />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Reset database — delete all data</TooltipContent>
+          <TooltipContent>
+            {confirmReset ? "Click again to delete ALL data" : "Reset database — delete all data"}
+          </TooltipContent>
         </Tooltip>
+        {resetError && (
+          <span className="text-destructive max-w-40 truncate text-[10px]">{resetError}</span>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -164,7 +262,22 @@ export function AppHeader() {
           </TooltipTrigger>
           <TooltipContent>Toggle theme</TooltipContent>
         </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={infoOpen ? "secondary" : "ghost"}
+              size="icon-sm"
+              onClick={() => setInfoOpen((v) => !v)}
+            >
+              <Info />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>DuckDB storage info</TooltipContent>
+        </Tooltip>
       </div>
+
+      {infoOpen && <DbInfoPopover onClose={() => setInfoOpen(false)} />}
     </header>
   )
 }

@@ -17,6 +17,26 @@ export interface Stats {
   db_file: string | null
 }
 
+export interface TableStats {
+  table_name: string
+  estimated_size: number | null
+  column_count: number | null
+  index_count: number | null
+}
+
+export interface DbStats {
+  db_file: string | null
+  file_size_bytes: number | null
+  database_size: string | null
+  block_size: number | null
+  total_blocks: number | null
+  used_blocks: number | null
+  free_blocks: number | null
+  checkpoint_count: number | null
+  memory_bytes: number | null
+  tables: TableStats[]
+}
+
 export interface ServiceInfo {
   name: string
   first_ns: string | null
@@ -275,6 +295,7 @@ export function runQuery(sql: string, limit = 1000): Promise<QueryResponse> {
 
 export const fetchHealth = () => get<Health>("/api/health")
 export const fetchStats = () => get<Stats>("/api/stats")
+export const fetchDbStats = () => get<DbStats>("/api/dbstats")
 export const fetchServices = () => get<{ services: ServiceInfo[] }>("/api/services")
 export const fetchSchema = () => get<Schema>("/api/schema")
 

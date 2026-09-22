@@ -30,6 +30,7 @@ pub fn router(db: Arc<Db>, meta: Meta) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/stats", get(stats))
+        .route("/api/dbstats", get(dbstats))
         .route("/api/schema", get(schema))
         .route("/api/services", get(services))
         .route("/api/traces", get(traces))
@@ -65,6 +66,19 @@ async fn stats(State(db): State<Arc<Db>>) -> Result<Json<queries::StatsResponse>
     let db_file = db.db_file().map(str::to_string);
     let res = db
         .read(move |conn| queries::stats(conn, db_file.as_deref()))
+        .await?;
+    Ok(Json(res))
+}
+
+/// DuckDB storage stats: file size, block usage, per-table sizes, memory.
+async fn dbstats(State(db): State<Arc<Db>>) -> Result<Json<queries::DbStatsResponse>, ApiError> {
+    let db_file = db.db_file().map(str::to_string);
+    let file_size = db_file
+        .as_deref()
+        .and_then(|f| std::fs::metadata(f).ok())
+        .map(|m| m.len());
+    let res = db
+        .read(move |conn| queries::db_stats(conn, db_file.as_deref(), file_size))
         .await?;
     Ok(Json(res))
 }

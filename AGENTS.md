@@ -62,6 +62,13 @@ done. There is no rustfmt/clippy config beyond the defaults.
 - **sqlguard** (`src/sqlguard.rs`): user SQL in the SQL panel must stay a
   single read-only statement; keywords are blocklisted and `--` comments are
   stripped before scanning. Queries without a LIMIT get one appended.
+- **Maintenance endpoints**: `POST /api/reset` deletes all telemetry rows
+  (serialized through the db writer task); `GET /api/dbstats` returns
+  DuckDB storage stats (file size, blocks, per-table sizes, memory) — used
+  by the header (i) button.
+- **No native JS dialogs in the Tauri webview**: `window.confirm/alert` are
+  silent no-ops — use inline two-step confirmation / error states instead
+  (see the reset button in `web/src/components/AppHeader.tsx`).
 - **aiolocust telemetry quirks** (matters for the SQL panel examples in
   `web/src/components/panels/SqlPanel.tsx`):
   - `locust.current_users` is a gauge stored in `value_int` — use

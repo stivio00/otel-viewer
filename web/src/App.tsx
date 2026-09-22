@@ -2,6 +2,7 @@ import { useEffect } from "react"
 
 import { useUi } from "@/lib/store"
 import { AppHeader } from "@/components/AppHeader"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { Layout } from "@/components/Layout"
 
 export default function App() {
@@ -15,7 +16,9 @@ export default function App() {
     <div className="bg-background text-foreground flex h-full flex-col overflow-hidden">
       <AppHeader />
       <main className="min-h-0 flex-1 p-2">
-        <Layout />
+        <ErrorBoundary>
+          <Layout />
+        </ErrorBoundary>
       </main>
     </div>
   )

@@ -17,6 +17,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -296,15 +301,39 @@ export function SqlPanel() {
             result && (
               <>
                 {plot && (
-                  <Button
-                    size="sm"
-                    variant={showChart ? "secondary" : "ghost"}
-                    onClick={() => setShowChart((v) => !v)}
-                    title="Toggle chart"
-                  >
-                    <LineChartIcon />
-                    chart
-                  </Button>
+                  <UiTooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant={showChart ? "secondary" : "ghost"}
+                        onClick={() => setShowChart((v) => !v)}
+                      >
+                        <LineChartIcon />
+                        chart
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="max-w-[380px]">
+                      <div className="space-y-1.5 text-xs leading-relaxed">
+                        <div className="font-semibold">Auto line chart</div>
+                        <div>
+                          Shows automatically when a result has a <b>time-like column</b> plus
+                          numeric columns. The x-axis uses a column named like{" "}
+                          <code>ts / time / timestamp / date</code>, or any column whose values
+                          parse as epoch ns/µs/ms/s or ISO datetime strings.
+                        </div>
+                        <div>
+                          Every remaining numeric column becomes a line (up to 8) —{" "}
+                          <b>select multiple numeric columns to get multiple lines</b>.
+                          Epoch-timestamp columns are skipped as y-values.
+                        </div>
+                        <div>
+                          Tips: <code>ORDER BY</code> your time column; cast with{" "}
+                          <code>::DOUBLE</code> if a value column is typed as text; alias columns
+                          (<code>AS p95_ms</code>) to label the lines.
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </UiTooltip>
                 )}
                 <Badge variant="secondary" className="tabular-nums">
                   {result.row_count} rows

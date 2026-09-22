@@ -15,6 +15,9 @@ App Transport Security / Local Network privacy never apply).
   - Windows: `%APPDATA%\com.otelviewer.desktop\otel-viewer.duckdb`
 - Demo telemetry is seeded on first run (empty database)
 - Single instance: launching a second copy focuses the first
+- In-app **reset** (trash button in the header, two-click confirm) deletes
+  all telemetry via `POST /api/reset`; the **(i)** button shows live DuckDB
+  storage stats (`GET /api/dbstats`)
 
 The actually bound ports are reported by `http://127.0.0.1:6666/api/health`.
 
