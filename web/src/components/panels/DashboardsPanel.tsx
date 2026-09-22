@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import {
   Bar,
   BarChart,
@@ -27,6 +27,7 @@ import {
   type QueryResponse,
 } from "@/lib/api"
 import {
+  CHART_TOOLTIP_STYLE,
   detectBar,
   detectHeat,
   detectHist,
@@ -35,6 +36,7 @@ import {
   toNum,
   type PlotShape,
 } from "@/lib/chart"
+import { useChartAnimate } from "@/lib/hooks"
 import {
   attributeOptionsSql,
   renderSql,
@@ -43,7 +45,6 @@ import {
   type PanelType,
 } from "@/lib/dash"
 import { fmtNsTime, num, serviceColor } from "@/lib/format"
-import { useUi } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Panel, PanelGroup, ResizeHandle } from "@/components/Split"
 import { EmptyState, Panel as PanelChrome } from "@/components/Panel"
@@ -159,7 +160,6 @@ interface RangeState {
 }
 
 function DashboardView({ id }: { id: string }) {
-  const refreshTick = useUi((s) => s.refreshTick)
   const { data: dash, isLoading, error } = useQuery({
     queryKey: ["dashboard", id],
     queryFn: () => fetchDashboard(id),
@@ -365,7 +365,6 @@ function DashboardView({ id }: { id: string }) {
             fromNs={bounds.fromNs}
             toNs={bounds.toNs}
             inputs={effectiveInputs}
-            refreshTick={refreshTick}
           />
         ))}
       </div>
@@ -434,23 +433,24 @@ function DashPanel({
   fromNs,
   toNs,
   inputs,
-  refreshTick,
 }: {
   dashId: string
   panel: DashboardPanel
   fromNs: number
   toNs: number
   inputs: Record<string, string>
-  refreshTick: number
 }) {
   const sql = useMemo(
     () => renderSql(panel.sql ?? "", { fromNs, toNs, inputs }),
     [panel.sql, fromNs, toNs, inputs]
   )
+  // keepPreviousData: when the time range / an input changes, the previous
+  // data stays visible until the new result arrives — no loading flash.
   const { data, isLoading, error } = useQuery({
-    queryKey: ["dash-panel", dashId, panel.id, sql, refreshTick],
+    queryKey: ["dash-panel", dashId, panel.id, sql],
     queryFn: () => runQuery(sql, 5000),
     enabled: !!panel.sql,
+    placeholderData: keepPreviousData,
   })
 
   return (
@@ -529,14 +529,8 @@ function lastNumeric(result: QueryResponse): number | null {
   return null
 }
 
-const TOOLTIP_STYLE = {
-  backgroundColor: "var(--popover)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  fontSize: 11,
-} as const
-
 function LineView({ plot }: { plot: PlotShape }) {
+  const animate = useChartAnimate()
   return (
     <div className="h-full w-full">
       <ResponsiveContainer>
@@ -554,7 +548,7 @@ function LineView({ plot }: { plot: PlotShape }) {
           />
           <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
           <Tooltip
-            contentStyle={TOOLTIP_STYLE}
+            contentStyle={CHART_TOOLTIP_STYLE}
             labelFormatter={(t) => fmtNsTime(Number(t) * 1e6)}
           />
           {plot.series.map((name) => (
@@ -567,6 +561,7 @@ function LineView({ plot }: { plot: PlotShape }) {
               strokeWidth={1.8}
               connectNulls
               stroke={serviceColor(name)}
+              isAnimationActive={animate}
             />
           ))}
         </LineChart>
@@ -580,6 +575,7 @@ function PointsView({
 }: {
   shape: { xCol: string; yCols: string[]; rows: Array<Record<string, number | null>> }
 }) {
+  const animate = useChartAnimate()
   return (
     <div className="h-full w-full">
       <ResponsiveContainer>
@@ -595,7 +591,7 @@ function PointsView({
             }
           />
           <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
           {shape.yCols.map((name) => (
             <Scatter
               key={name}
@@ -604,6 +600,7 @@ function PointsView({
               dataKey={name}
               fill={serviceColor(name)}
               fillOpacity={0.7}
+              isAnimationActive={animate}
             />
           ))}
         </ScatterChart>
@@ -617,6 +614,7 @@ function BarView({
 }: {
   shape: { labelCol: string; valueCols: string[]; rows: Array<Record<string, string | number | null>> }
 }) {
+  const animate = useChartAnimate()
   return (
     <div className="h-full w-full">
       <ResponsiveContainer>
@@ -633,9 +631,16 @@ function BarView({
             height={44}
           />
           <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
           {shape.valueCols.map((name) => (
-            <Bar key={name} dataKey={name} name={name} fill={serviceColor(name)} radius={[3, 3, 0, 0]} />
+            <Bar
+              key={name}
+              dataKey={name}
+              name={name}
+              fill={serviceColor(name)}
+              radius={[3, 3, 0, 0]}
+              isAnimationActive={animate}
+            />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -653,6 +658,7 @@ function HistView({
     max: number
   }
 }) {
+  const animate = useChartAnimate()
   const data = shape.bins.map((b) => ({ ...b, label: `${num(b.x0)}–${num(b.x1)}` }))
   return (
     <div className="flex h-full w-full flex-col">
@@ -673,8 +679,8 @@ function HistView({
               height={40}
             />
             <YAxis stroke="var(--muted-foreground)" fontSize={10} width={36} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Bar dataKey="count" name="count" radius={[3, 3, 0, 0]}>
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Bar dataKey="count" name="count" radius={[3, 3, 0, 0]} isAnimationActive={animate}>
               {data.map((_, i) => (
                 <Cell key={i} fill={serviceColor(String(i))} />
               ))}
@@ -687,6 +693,7 @@ function HistView({
 }
 
 function DialView({ value, max }: { value: number; max?: number }) {
+  const animate = useChartAnimate()
   // Nice rounded auto scale: ceil(|value|) to a 1/2/5 × 10^k step.
   const m = Math.max(Math.abs(value), 1e-9)
   const step = Math.pow(10, Math.floor(Math.log10(m))) / 2
@@ -705,6 +712,7 @@ function DialView({ value, max }: { value: number; max?: number }) {
           <PolarAngleAxis type="number" domain={[0, displayMax]} tick={false} />
           <RadialBar
             dataKey="value"
+            isAnimationActive={animate}
             cornerRadius={8}
             fill="var(--chart-1, #3b82f6)"
             background={{ fill: "var(--muted)" }}

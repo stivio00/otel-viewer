@@ -45,13 +45,12 @@ export function LogsPanel() {
   const [q, setQ] = useState("")
   const debouncedQ = useDebounce(q)
   const timeRange = useUi((s) => s.timeRange)
-  const refreshTick = useUi((s) => s.refreshTick)
   const setPreset = useUi((s) => s.setPreset)
   const setSelectedTraceId = useUi((s) => s.setSelectedTraceId)
   const [selected, setSelected] = useState<LogDto | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["logs", service, severity, debouncedQ, timeRange, refreshTick],
+    queryKey: ["logs", service, severity, debouncedQ, timeRange],
     queryFn: () =>
       fetchLogs({
         service: service === "all" ? undefined : service,

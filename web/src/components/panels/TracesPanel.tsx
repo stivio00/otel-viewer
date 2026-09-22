@@ -30,12 +30,11 @@ export function TracesPanel() {
   const [errorsOnly, setErrorsOnly] = useState(false)
   const debouncedQ = useDebounce(q)
   const timeRange = useUi((s) => s.timeRange)
-  const refreshTick = useUi((s) => s.refreshTick)
   const selectedTraceId = useUi((s) => s.selectedTraceId)
   const setSelectedTraceId = useUi((s) => s.setSelectedTraceId)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["traces", service, debouncedQ, errorsOnly, timeRange, refreshTick],
+    queryKey: ["traces", service, debouncedQ, errorsOnly, timeRange],
     queryFn: () =>
       fetchTraces({
         service: service === "all" ? undefined : service,

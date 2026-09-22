@@ -3,16 +3,14 @@ import { useQuery } from "@tanstack/react-query"
 import { ChevronDown, Database } from "lucide-react"
 
 import { fetchSchema, type TableInfo } from "@/lib/api"
-import { useUi } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { Panel as PanelChrome } from "@/components/Panel"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 export function SchemaPanel({ onPickTable }: { onPickTable?: (table: string) => void }) {
-  const refreshTick = useUi((s) => s.refreshTick)
   const { data, isLoading } = useQuery({
-    queryKey: ["schema", refreshTick],
+    queryKey: ["schema"],
     queryFn: fetchSchema,
     staleTime: 60_000,
   })

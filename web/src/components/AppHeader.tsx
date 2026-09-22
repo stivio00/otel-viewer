@@ -133,7 +133,6 @@ export function AppHeader() {
   const setPreset = useUi((s) => s.setPreset)
   const timeRange = useUi((s) => s.timeRange)
   const setTimeRange = useUi((s) => s.setTimeRange)
-  const refresh = useUi((s) => s.refresh)
   const autoRefreshMs = useUi((s) => s.autoRefreshMs)
   const setAutoRefreshMs = useUi((s) => s.setAutoRefreshMs)
   const queryClient = useQueryClient()
@@ -143,13 +142,14 @@ export function AppHeader() {
   const resetTimer = useRef<number>(0)
   const [infoOpen, setInfoOpen] = useState(false)
 
-  // Auto-refresh: bump refreshTick (which all panel queries key on) on an
-  // interval. 0 = off.
+  // Auto-refresh: invalidate active queries on an interval. Invalidation
+  // refetches in place — previous data stays on screen (no loading flash,
+  // no chart remount), unlike changing query keys. 0 = off.
   useEffect(() => {
     if (!autoRefreshMs) return
-    const id = window.setInterval(refresh, autoRefreshMs)
+    const id = window.setInterval(() => queryClient.invalidateQueries(), autoRefreshMs)
     return () => window.clearInterval(id)
-  }, [autoRefreshMs, refresh])
+  }, [autoRefreshMs, queryClient])
 
   // window.confirm() is a silent no-op inside the Tauri webview, so the reset
   // button uses a two-step inline confirmation instead (armed for 4s).
@@ -166,7 +166,6 @@ export function AppHeader() {
     resetDb()
       .then(async () => {
         await queryClient.invalidateQueries()
-        refresh()
       })
       .catch((e: unknown) => {
         setResetError(String(e))
@@ -255,7 +254,11 @@ export function AppHeader() {
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={refresh}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => queryClient.invalidateQueries()}
+            >
               <RefreshCw />
             </Button>
           </TooltipTrigger>

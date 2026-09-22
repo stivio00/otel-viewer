@@ -5,6 +5,8 @@ import { Gauge, LineChart as LineChartIcon } from "lucide-react"
 
 import { fetchMetricDetail, fetchMetrics, type MetricDetail, type MetricPointDto } from "@/lib/api"
 import { fmtNsTime, num, parseJsonField, serviceColor } from "@/lib/format"
+import { CHART_TOOLTIP_STYLE } from "@/lib/chart"
+import { useChartAnimate } from "@/lib/hooks"
 import { useDebounce } from "@/lib/hooks"
 import { timeRangeStartNs, useUi } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -35,11 +37,10 @@ export function MetricsPanel() {
   const [q, setQ] = useState("")
   const debouncedQ = useDebounce(q)
   const timeRange = useUi((s) => s.timeRange)
-  const refreshTick = useUi((s) => s.refreshTick)
   const [selectedName, setSelectedName] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["metrics", debouncedQ, refreshTick],
+    queryKey: ["metrics", debouncedQ],
     queryFn: () => fetchMetrics(debouncedQ || undefined, 200),
     refetchInterval: 30_000,
   })
@@ -136,9 +137,8 @@ function MetricDetailPanel({
   name: string
   timeRangeStart: string | undefined
 }) {
-  const refreshTick = useUi((s) => s.refreshTick)
   const { data: detail, isLoading, error } = useQuery({
-    queryKey: ["metric-detail", name, timeRangeStart, refreshTick],
+    queryKey: ["metric-detail", name, timeRangeStart],
     queryFn: () =>
       fetchMetricDetail(name, { start_ns: timeRangeStart, limit: 500 }),
     refetchInterval: 30_000,
@@ -194,6 +194,7 @@ function pointValue(detail: MetricDetail, p: MetricPointDto): number | null {
 
 
 function MetricDetailBody({ detail }: { detail: MetricDetail }) {
+  const animate = useChartAnimate()
   const series = useMemo<SeriesInfo[]>(() => {
     const byKey = new Map<string, SeriesInfo>()
     for (const p of detail.points) {
@@ -273,12 +274,7 @@ function MetricDetailBody({ detail }: { detail: MetricDetail }) {
                 />
                 <YAxis stroke="var(--muted-foreground)" fontSize={10} width={44} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    fontSize: 11,
-                  }}
+                  contentStyle={CHART_TOOLTIP_STYLE}
                   labelFormatter={(t) => fmtNsTime(Number(t) * 1e6)}
                 />
                 {series.map((s) => (
@@ -291,6 +287,7 @@ function MetricDetailBody({ detail }: { detail: MetricDetail }) {
                     strokeWidth={1.8}
                     connectNulls
                     stroke={serviceColor(s.service)}
+                    isAnimationActive={animate}
                   />
                 ))}
               </LineChart>
@@ -313,6 +310,7 @@ function MetricDetailBody({ detail }: { detail: MetricDetail }) {
 const BUCKET_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"]
 
 function HistogramBuckets({ bounds, counts }: { bounds: unknown; counts: unknown }) {
+  const animate = useChartAnimate()
   const bArr = Array.isArray(bounds) ? bounds.map(Number) : []
   const cArr = Array.isArray(counts) ? counts.map(Number) : []
   if (cArr.length === 0) return null
@@ -331,14 +329,9 @@ function HistogramBuckets({ bounds, counts }: { bounds: unknown; counts: unknown
             <XAxis dataKey="bucket" stroke="var(--muted-foreground)" fontSize={9} />
             <YAxis stroke="var(--muted-foreground)" fontSize={9} width={32} />
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--popover)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                fontSize: 11,
-              }}
+              contentStyle={CHART_TOOLTIP_STYLE}
             />
-            <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="count" radius={[3, 3, 0, 0]} isAnimationActive={animate}>
               {data.map((_, i) => (
                 <Cell key={i} fill={BUCKET_COLORS[i % BUCKET_COLORS.length]} />
               ))}
@@ -351,6 +344,7 @@ function HistogramBuckets({ bounds, counts }: { bounds: unknown; counts: unknown
 }
 
 function ExpBuckets({ buckets, zeroCount }: { buckets: unknown; zeroCount: number | null }) {
+  const animate = useChartAnimate()
   const parsed = parseJsonField(buckets)
   const positive = parsed?.positive as Record<string, unknown> | undefined
   const offset = Number(positive?.offset ?? 0)
@@ -373,14 +367,9 @@ function ExpBuckets({ buckets, zeroCount }: { buckets: unknown; zeroCount: numbe
             <XAxis dataKey="bucket" stroke="var(--muted-foreground)" fontSize={9} />
             <YAxis stroke="var(--muted-foreground)" fontSize={9} width={32} />
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--popover)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                fontSize: 11,
-              }}
+              contentStyle={CHART_TOOLTIP_STYLE}
             />
-            <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="var(--chart-1)" />
+            <Bar dataKey="count" radius={[3, 3, 0, 0]} fill="var(--chart-1)" isAnimationActive={animate} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -7,7 +7,8 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { LineChart as LineChartIcon, Play, Table2, Terminal } from "lucide-react"
 
 import { runQuery, type QueryResponse } from "@/lib/api"
-import { detectPlot, type PlotShape } from "@/lib/chart"
+import { CHART_TOOLTIP_STYLE, detectPlot, type PlotShape } from "@/lib/chart"
+import { useChartAnimate } from "@/lib/hooks"
 import { fmtNsTime, num, serviceColor } from "@/lib/format"
 import { useUi } from "@/lib/store"
 import { Panel, PanelGroup } from "@/components/Split"
@@ -92,6 +93,7 @@ const EXAMPLES: Array<{ label: string; sql: string }> = [
 // ---------------------------------------------------------------------------
 
 function ResultChart({ plot }: { plot: PlotShape }) {
+  const animate = useChartAnimate()
   return (
     <div className="h-[220px] shrink-0 border-b">
       <ResponsiveContainer width="100%" height="100%">
@@ -109,12 +111,7 @@ function ResultChart({ plot }: { plot: PlotShape }) {
           />
           <YAxis stroke="var(--muted-foreground)" fontSize={10} width={48} />
           <Tooltip
-            contentStyle={{
-              backgroundColor: "var(--popover)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              fontSize: 11,
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
             labelFormatter={(t) => fmtNsTime(Number(t) * 1e6)}
           />
           {plot.series.map((name) => (
@@ -127,6 +124,7 @@ function ResultChart({ plot }: { plot: PlotShape }) {
               strokeWidth={1.8}
               connectNulls
               stroke={serviceColor(name)}
+              isAnimationActive={animate}
             />
           ))}
         </LineChart>

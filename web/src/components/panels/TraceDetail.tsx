@@ -12,7 +12,6 @@ import {
   spanKindName,
   statusBadge,
 } from "@/lib/format"
-import { useUi } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { EmptyState, Panel as PanelChrome } from "@/components/Panel"
 import { Badge } from "@/components/ui/badge"
@@ -27,9 +26,8 @@ interface LaidOutSpan {
 }
 
 export function TraceDetail({ traceId }: { traceId: string }) {
-  const refreshTick = useUi((s) => s.refreshTick)
   const { data: trace, isLoading, error } = useQuery({
-    queryKey: ["trace-detail", traceId, refreshTick],
+    queryKey: ["trace-detail", traceId],
     queryFn: () => fetchTraceDetail(traceId),
   })
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)

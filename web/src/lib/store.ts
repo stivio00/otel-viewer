@@ -12,7 +12,6 @@ interface UiState {
   preset: Preset
   timeRange: TimeRange
   selectedTraceId: string | null
-  refreshTick: number
   autoRefreshMs: number
   sqlText: string
   setTheme: (t: Theme) => void
@@ -20,7 +19,6 @@ interface UiState {
   setPreset: (p: Preset) => void
   setTimeRange: (r: TimeRange) => void
   setSelectedTraceId: (id: string | null) => void
-  refresh: () => void
   setAutoRefreshMs: (ms: number) => void
   setSqlText: (t: string) => void
 }
@@ -40,7 +38,6 @@ export const useUi = create<UiState>((set) => ({
   preset: (localStorage.getItem("otv-preset") as Preset) ?? "default",
   timeRange: "all",
   selectedTraceId: null,
-  refreshTick: 0,
   autoRefreshMs: Number(localStorage.getItem("otv-autorefresh")) || 0,
   sqlText: localStorage.getItem("otv-sql") ?? DEFAULT_SQL,
   setTheme: (t) => {
@@ -58,7 +55,6 @@ export const useUi = create<UiState>((set) => ({
   },
   setTimeRange: (r) => set({ timeRange: r }),
   setSelectedTraceId: (id) => set({ selectedTraceId: id }),
-  refresh: () => set((s) => ({ refreshTick: s.refreshTick + 1 })),
   setAutoRefreshMs: (ms) => {
     localStorage.setItem("otv-autorefresh", String(ms))
     set({ autoRefreshMs: ms })

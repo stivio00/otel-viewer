@@ -4,6 +4,14 @@
 
 import type { ColumnInfo, QueryResponse } from "@/lib/api"
 
+/** Shared recharts Tooltip styling (theme tokens, compact). */
+export const CHART_TOOLTIP_STYLE = {
+  backgroundColor: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  fontSize: 11,
+} as const
+
 /** Numeric value from a number or numeric-looking string (HUGEINT columns
  *  such as sum()/count() come back from the API as strings). */
 export function toNum(v: unknown): number | null {

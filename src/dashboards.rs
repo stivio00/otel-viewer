@@ -90,10 +90,12 @@ fn parse_doc(id: &str, source: &'static str, bytes: &[u8]) -> Option<DashboardFu
 
 fn embedded() -> impl Iterator<Item = DashboardFull> {
     EmbeddedDashboards::iter().filter_map(|f| {
-        let id = f.trim_end_matches(".yml").trim_end_matches(".yaml").to_string();
+        let id = f
+            .trim_end_matches(".yml")
+            .trim_end_matches(".yaml")
+            .to_string();
         let id = id.rsplit('/').next().unwrap_or(&id).to_string();
-        EmbeddedDashboards::get(f.as_ref())
-            .and_then(|e| parse_doc(&id, "builtin", &e.data))
+        EmbeddedDashboards::get(f.as_ref()).and_then(|e| parse_doc(&id, "builtin", &e.data))
     })
 }
 
@@ -144,7 +146,10 @@ fn cache() -> &'static Mutex<Cache> {
     CACHE.get_or_init(|| {
         let map = build();
         let mtime = user_dir().and_then(|d| fs::metadata(d).ok().and_then(|m| m.modified().ok()));
-        Mutex::new(Cache { map, user_dir_mtime: mtime })
+        Mutex::new(Cache {
+            map,
+            user_dir_mtime: mtime,
+        })
     })
 }
 
