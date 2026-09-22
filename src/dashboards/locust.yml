@@ -37,6 +37,50 @@ inputs:
     default: ""
 
 panels:
+  - id: stats
+    title: Endpoint stats
+    type: table
+    span: 2
+    sql: |
+      WITH pts AS (
+        SELECT ts_ns, series_attributes AS series,
+               json_extract_string(series_attributes, '$."name"') AS name,
+               json_extract_string(series_attributes, '$."error.type"') AS err,
+               hist_count AS cnt, hist_sum AS dur, hist_max AS mx
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
+          AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
+          AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), d AS (
+        SELECT name, err, ts_ns, mx,
+               greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS reqs,
+               greatest(dur - lag(dur) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS dur_s
+        FROM pts
+      ), lastmx AS (
+        SELECT name, mx
+        FROM (SELECT name, mx, row_number() OVER (PARTITION BY name ORDER BY ts_ns DESC) AS rn FROM d)
+        WHERE rn = 1
+      ), agg AS (
+        SELECT name, sum(reqs) AS n,
+               sum(CASE WHEN err IS NOT NULL THEN reqs ELSE 0 END) AS failures,
+               sum(dur_s) AS total_s
+        FROM d
+        WHERE reqs IS NOT NULL
+        GROUP BY GROUPING SETS ((name), ())
+      )
+      SELECT coalesce(a.name, 'Total') AS "Name",
+             a.n AS "Count",
+             a.failures || ' (' || round(100.0 * a.failures / nullif(a.n, 0), 1) || '%)' AS "Failures",
+             round(a.total_s / nullif(a.n, 0) * 1000, 1) AS "Avg (ms)",
+             round(coalesce(m.mx, (SELECT max(mx) FROM lastmx), 0) * 1000, 1) AS "Max (ms)",
+             round(a.n / nullif((SELECT (max(ts_ns) - min(ts_ns)) / 1e9 FROM pts), 0), 2) AS "Rate/s"
+      FROM agg a LEFT JOIN lastmx m USING (name)
+      ORDER BY (a.name IS NULL), a.name
+
   - id: users_now
     title: Users (now)
     type: dial

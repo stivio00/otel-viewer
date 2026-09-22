@@ -28,6 +28,7 @@ export type PanelType =
   | "dial"
   | "stat"
   | "heatmap"
+  | "table"
 
 export interface DashboardPanel {
   id: string

@@ -61,11 +61,37 @@ const ALL = "__all__"
 
 const TIME_PRESETS: Array<{ value: string; label: string; ms: number | null }> = [
   { value: "all", label: "All", ms: null },
+  { value: "5m", label: "5m", ms: 5 * 60_000 },
+  { value: "10m", label: "10m", ms: 10 * 60_000 },
   { value: "15m", label: "15m", ms: 15 * 60_000 },
+  { value: "30m", label: "30m", ms: 30 * 60_000 },
   { value: "1h", label: "1h", ms: 3_600_000 },
+  { value: "3h", label: "3h", ms: 3 * 3_600_000 },
   { value: "6h", label: "6h", ms: 6 * 3_600_000 },
+  { value: "12h", label: "12h", ms: 12 * 3_600_000 },
   { value: "24h", label: "24h", ms: 24 * 3_600_000 },
+  { value: "7d", label: "7d", ms: 7 * 24 * 3_600_000 },
 ]
+
+/** Quick window nudges shown next to the from/to pickers. */
+const QUICK_SHIFTS: Array<{ label: string; ms: number }> = [
+  { label: "+10m", ms: 10 * 60_000 },
+  { label: "+15m", ms: 15 * 60_000 },
+  { label: "+1h", ms: 3_600_000 },
+]
+
+function windowLabel(fromMs: number, toMs: number): string {
+  const w = Math.max(0, toMs - fromMs)
+  if (w >= 86_400_000) return `${round(w / 86_400_000, 1)}d`
+  if (w >= 3_600_000) return `${round(w / 3_600_000, 1)}h`
+  if (w >= 60_000) return `${round(w / 60_000, 1)}m`
+  return `${round(w / 1000, 0)}s`
+}
+
+function round(n: number, digits: number): number {
+  const p = 10 ** digits
+  return Math.round(n * p) / p
+}
 
 const MAX_TO_NS = 9.2e18 // int64-ish upper bound = "now and beyond"
 
@@ -156,6 +182,26 @@ function DashboardView({ id }: { id: string }) {
     return { fromNs: (to - win) * 1e6, toNs: to * 1e6 }
   }, [range])
 
+  const windowWidth = () => {
+    if (range.preset === "custom" && range.fromMs != null && range.toMs != null)
+      return Math.max(1_000, range.toMs - range.fromMs)
+    return TIME_PRESETS.find((p) => p.value === range.preset)?.ms ?? 3_600_000
+  }
+
+  const shiftRange = (ms: number) => {
+    setRange({
+      preset: "custom",
+      fromMs: Math.max(0, bounds.fromNs / 1e6 + ms),
+      toMs: bounds.toNs / 1e6 + ms,
+    })
+  }
+
+  const jumpToNow = () => {
+    const w = windowWidth()
+    const now = Date.now()
+    setRange({ preset: "custom", fromMs: now - w, toMs: now })
+  }
+
   if (isLoading) {
     return (
       <PanelChrome title="Dashboard" icon={LayoutDashboard} className="h-full">
@@ -183,61 +229,120 @@ function DashboardView({ id }: { id: string }) {
         {dash.description}
       </div>
 
-      <div className="bg-muted/30 flex flex-wrap items-center gap-2 border-b px-3 py-2">
-        <div className="flex items-center gap-1">
+      <div className="bg-muted/30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
+        <div className="flex items-center gap-0.5">
           {TIME_PRESETS.map((p) => (
             <Button
               key={p.value}
               size="sm"
               variant={range.preset === p.value ? "default" : "ghost"}
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-1.5 text-[11px]"
               onClick={() => setRange({ preset: p.value, fromMs: null, toMs: null })}
             >
               {p.label}
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-1 text-[11px]">
-          <input
-            type="datetime-local"
-            step={1}
-            className="bg-background border rounded-md px-1.5 py-1 text-[11px]"
-            value={toLocalInput(
-              range.preset === "custom"
-                ? (range.fromMs ?? 0)
-                : bounds.fromNs > 0
-                  ? bounds.fromNs / 1e6
-                  : Date.now() - 3_600_000
-            )}
-            onChange={(e) =>
-              setRange((r) => ({
-                preset: "custom",
-                fromMs: e.target.value ? Date.parse(e.target.value) : null,
-                toMs: r.preset === "custom" ? r.toMs : null,
-              }))
-            }
-          />
+
+        {range.preset !== "all" && (
+          <div className="flex items-center gap-0.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-1.5 text-[11px]"
+              title="Shift window back by its width"
+              onClick={() => shiftRange(-windowWidth())}
+            >
+              ‹
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-1.5 text-[11px]"
+              title="Shift window forward by its width"
+              onClick={() => shiftRange(windowWidth())}
+            >
+              ›
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[11px]"
+              title="Jump to the latest data, keep the window width"
+              onClick={jumpToNow}
+            >
+              Now
+            </Button>
+            <span className="bg-background text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] tabular-nums">
+              {windowLabel(bounds.fromNs / 1e6, bounds.toNs / 1e6)}
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <label className="flex items-center gap-1">
+            <span className="text-muted-foreground">From</span>
+            <input
+              type="datetime-local"
+              step={1}
+              className="bg-background border-input rounded-md border px-1.5 py-1 text-[11px]"
+              value={toLocalInput(
+                range.preset === "custom"
+                  ? (range.fromMs ?? 0)
+                  : bounds.fromNs > 0
+                    ? bounds.fromNs / 1e6
+                    : Date.now() - 3_600_000
+              )}
+              onChange={(e) =>
+                setRange((r) => ({
+                  preset: "custom",
+                  fromMs: e.target.value ? Date.parse(e.target.value) : null,
+                  toMs: r.preset === "custom" ? r.toMs : null,
+                }))
+              }
+            />
+          </label>
           <span className="text-muted-foreground">→</span>
-          <input
-            type="datetime-local"
-            step={1}
-            className="bg-background border rounded-md px-1.5 py-1 text-[11px]"
-            value={toLocalInput(
-              range.preset === "custom"
-                ? (range.toMs ?? Date.now())
-                : bounds.toNs < MAX_TO_NS
-                  ? bounds.toNs / 1e6
-                  : Date.now()
-            )}
-            onChange={(e) =>
-              setRange((r) => ({
-                preset: "custom",
-                fromMs: r.preset === "custom" ? r.fromMs : Date.now() - 3_600_000,
-                toMs: e.target.value ? Date.parse(e.target.value) : null,
-              }))
-            }
-          />
+          <label className="flex items-center gap-1">
+            <span className="text-muted-foreground">To</span>
+            <input
+              type="datetime-local"
+              step={1}
+              className="bg-background border-input rounded-md border px-1.5 py-1 text-[11px]"
+              value={toLocalInput(
+                range.preset === "custom"
+                  ? (range.toMs ?? Date.now())
+                  : bounds.toNs < MAX_TO_NS
+                    ? bounds.toNs / 1e6
+                    : Date.now()
+              )}
+              onChange={(e) =>
+                setRange((r) => ({
+                  preset: "custom",
+                  fromMs: r.preset === "custom" ? r.fromMs : Date.now() - 3_600_000,
+                  toMs: e.target.value ? Date.parse(e.target.value) : null,
+                }))
+              }
+            />
+          </label>
+          {range.preset !== "all" && (
+            <div className="flex items-center gap-0.5">
+              {QUICK_SHIFTS.map((s) => (
+                <Button
+                  key={s.label}
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground h-6 px-1.5 text-[10px]"
+                  title={`Move window ${s.label}`}
+                  onClick={() => shiftRange(s.ms)}
+                >
+                  {s.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
+
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {(dash.spec.inputs ?? []).map((i) => (
             <InputSelect
@@ -406,6 +511,8 @@ function PanelBody({
       const h = detectHeat(result)
       return h ? <HeatView shape={h} /> : <EmptyState label="No x/y/weight columns" />
     }
+    case "table":
+      return <TableView result={result} />
     default:
       return <EmptyState label={`Unknown panel type: ${type}`} />
   }
@@ -674,6 +781,62 @@ function HeatView({
           <span>{shape.xs.length ? fmtNsTime(shape.xs[shape.xs.length - 1] * 1e6) : ""}</span>
         </div>
       </div>
+    </div>
+  )
+}
+
+function TableView({ result }: { result: QueryResponse }) {
+  const numeric = new Set(
+    result.columns.filter((c) => result.rows.some((r) => toNum(r[c.name]) != null)).map((c) => c.name)
+  )
+  return (
+    <div className="h-full overflow-auto">
+      <table className="w-full border-collapse text-xs">
+        <thead className="bg-muted/60 sticky top-0 z-10">
+          <tr>
+            {result.columns.map((c) => (
+              <th
+                key={c.name}
+                className={cn(
+                  "text-muted-foreground px-2 py-1 text-left font-medium whitespace-nowrap",
+                  numeric.has(c.name) && "text-right"
+                )}
+              >
+                {c.name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {result.rows.map((r, i) => (
+            <tr key={i} className={cn("border-t", i % 2 === 1 && "bg-muted/20")}>
+              {result.columns.map((c, ci) => {
+                const v = r[c.name]
+                return (
+                  <td
+                    key={c.name}
+                    title={String(v ?? "")}
+                    className={cn(
+                      "px-2 py-1 whitespace-nowrap",
+                      ci === 0 && "max-w-56 truncate font-medium",
+                      numeric.has(c.name) && "text-right tabular-nums",
+                      String(r[result.columns[0].name] ?? "") === "Total" && "border-t-2 font-semibold"
+                    )}
+                  >
+                    {v == null
+                      ? "—"
+                      : typeof v === "number"
+                        ? num(v)
+                        : numeric.has(c.name)
+                          ? num(toNum(v) ?? 0)
+                          : String(v)}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

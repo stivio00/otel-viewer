@@ -9,9 +9,10 @@ and proper visualizations.
 Three dashboards ship built in:
 
 - **Locust load test** — the classic locust web page rebuilt on raw
-  telemetry: requests/s, latency percentiles, user count, a latency-bucket
-  heatmap and per-endpoint / per-error request counts. Works with the
-  `locust-test/` aiolocust harness.
+  telemetry: an endpoint stats table (count / failures / avg / max / rate),
+  requests/s, latency percentiles, user count, a latency-bucket heatmap and
+  per-endpoint / per-error request counts. Works with the `locust-test/`
+  aiolocust harness.
 - **.NET service (auto-instrumentation)** — RED metrics from spans plus the
   ASP.NET Core `RequestDuration` histogram and Kestrel connection gauges.
 - **Python service (auto-instrumentation)** — RED metrics from spans plus
@@ -105,7 +106,16 @@ when missing. You cannot mutate data from a dashboard.
 | `histogram` | one numeric column | client-side bucketed histogram |
 | `dial` | latest value of first numeric column | radial gauge with auto-scaled max (or set `max:`) |
 | `stat` | latest value of first numeric column | big number |
+| `table` | any result set | results table — numbers right-aligned, a `Total` row is emphasized |
 | `heatmap` | time (x) + numeric (y) + numeric (weight) | time × bucket grid, like Grafana's |
+
+### Time selector
+
+The toolbar offers quick relative ranges (All / 5m … 7d), `‹`/`›` to step
+the window by its own width, a **Now** button (re-anchor to the latest data,
+keep the width), a live window-width chip, labeled From/To date-time
+pickers, and `+10m / +15m / +1h` nudge buttons. Any manual change switches
+to a custom absolute window.
 
 Notes for metric panels:
 
