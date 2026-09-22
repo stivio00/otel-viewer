@@ -28,6 +28,13 @@ inputs:
     table: metrics
     key: error.type
     default: ""
+  - name: instance
+    label: Instance
+    type: attribute
+    table: metrics
+    key: service.instance.id
+    resource: true
+    default: ""
 
 panels:
   - id: users_now
@@ -39,6 +46,7 @@ panels:
       FROM metric_points
       WHERE metric_name = 'locust.current_users'
         AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
         AND ts_ns BETWEEN $from_ns AND $to_ns
       ORDER BY ts_ns DESC
       LIMIT 1
@@ -54,6 +62,7 @@ panels:
         WHERE metric_name = 'locust.client.duration'
           AND hist_count > 0
           AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
           AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
           AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
           AND ts_ns BETWEEN $from_ns AND $to_ns
@@ -72,6 +81,7 @@ panels:
       FROM metric_points
       WHERE metric_name = 'locust.current_users'
         AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
         AND ts_ns BETWEEN $from_ns AND $to_ns
       ORDER BY ts_ns
 
@@ -87,6 +97,7 @@ panels:
         WHERE metric_name = 'locust.client.duration'
           AND hist_count > 0
           AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
           AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
           AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
           AND ts_ns BETWEEN $from_ns AND $to_ns
@@ -117,6 +128,7 @@ panels:
         WHERE metric_name = 'locust.client.duration'
           AND hist_count > 0
           AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
           AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
           AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
           AND ts_ns BETWEEN $from_ns AND $to_ns
@@ -159,6 +171,7 @@ panels:
         WHERE metric_name = 'locust.client.duration'
           AND hist_count > 0
           AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
           AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
           AND ts_ns BETWEEN $from_ns AND $to_ns
       ), last AS (
@@ -184,6 +197,7 @@ panels:
         WHERE metric_name = 'locust.client.duration'
           AND hist_count > 0
           AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
           AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
           AND ts_ns BETWEEN $from_ns AND $to_ns
       ), d AS (
@@ -208,6 +222,7 @@ panels:
         WHERE metric_name = 'locust.client.duration'
           AND hist_count > 0
           AND ('$service' IS NULL OR service_name = '$service')
+        AND ('$instance' IS NULL OR json_extract_string(resource_attributes, '$."service.instance.id"') = '$instance')
           AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
           AND ts_ns BETWEEN $from_ns AND $to_ns
       ), d AS (

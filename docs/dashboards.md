@@ -46,6 +46,13 @@ inputs:
     table: spans          # spans | logs | metrics
     key: http.route       # JSON attribute key on that table
     default: ""
+  - name: instance
+    label: Instance
+    type: attribute
+    table: metrics
+    key: service.instance.id
+    resource: true        # read from resource_attributes instead of
+    default: ""           # series/span/log attributes
   - name: status
     type: select          # fixed choices
     choices:
@@ -79,6 +86,10 @@ Panel SQL is a template. Before executing, the UI substitutes:
 - `$<input-name>` — the selected value, **escaped as a SQL string literal**.
   An empty selection substitutes a bare `NULL` (quotes consumed), which is
   why the `('$x' IS NULL OR … = '$x')` idiom turns the filter off.
+  `service` inputs filter on `service_name`; `attribute` inputs read the
+  given JSON key from the table's span/log/series attributes, or from
+  `resource_attributes` when the input sets `resource: true` (e.g.
+  `service.instance.id`).
 
 Everything runs through the same read-only guard as the SQL console
 (`src/sqlguard.rs`): single statement, blocklisted keywords, LIMIT appended

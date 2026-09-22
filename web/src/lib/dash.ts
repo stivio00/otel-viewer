@@ -13,6 +13,9 @@ export interface DashboardInput {
   type: "service" | "attribute" | "select"
   table?: "spans" | "logs" | "metrics"
   key?: string
+  // attribute inputs: read from resource_attributes instead of the table's
+  // span/log/series attributes (e.g. service.instance.id).
+  resource?: boolean
   choices?: Array<{ value: string; label?: string }>
   default?: string
 }
@@ -57,18 +60,21 @@ export interface DashboardDto extends DashboardMetaDto {
 }
 
 /** Attribute input → the JSON column + path for its table. */
-export function attributeTarget(input: DashboardInput): { column: string; path: string } | null {
+export function attributeTarget(
+  input: DashboardInput
+): { column: string; path: string } | null {
   if (input.type !== "attribute" || !input.key) return null
-  switch (input.table) {
-    case "spans":
-      return { column: "span_attributes", path: input.key }
-    case "logs":
-      return { column: "log_attributes", path: input.key }
-    case "metrics":
-      return { column: "series_attributes", path: input.key }
-    default:
-      return null
-  }
+  const attr =
+    input.table === "spans"
+      ? "span_attributes"
+      : input.table === "logs"
+        ? "log_attributes"
+        : input.table === "metrics"
+          ? "series_attributes"
+          : null
+  if (!attr) return null
+  const column = input.resource ? "resource_attributes" : attr
+  return { column, path: input.key }
 }
 
 /** SQL that lists the distinct options for an attribute input. */
