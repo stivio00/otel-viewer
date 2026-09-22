@@ -1,6 +1,7 @@
 # Summary
 
 [Introduction](intro.md)
+[Installation](installation.md)
 
 - [Architecture](architecture.md)
 - [REST API](rest-api.md)
