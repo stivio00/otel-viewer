@@ -20,6 +20,7 @@ const PRESETS: Array<{ value: Preset; label: string }> = [
   { value: "logs", label: "Logs" },
   { value: "metrics", label: "Metrics" },
   { value: "sql", label: "SQL" },
+  { value: "dashboards", label: "Dashboards" },
 ]
 
 const RANGES: Array<{ value: TimeRange; label: string }> = [

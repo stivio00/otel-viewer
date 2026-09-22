@@ -5,6 +5,7 @@ import { TracesPanel } from "@/components/panels/TracesPanel"
 import { LogsPanel } from "@/components/panels/LogsPanel"
 import { MetricsPanel } from "@/components/panels/MetricsPanel"
 import { SqlPreset } from "@/components/panels/SqlPanel"
+import { DashboardsPanel } from "@/components/panels/DashboardsPanel"
 
 export function Layout() {
   const preset = useUi((s) => s.preset)
@@ -32,6 +33,12 @@ export function Layout() {
       return (
         <div className="h-full">
           <SqlPreset />
+        </div>
+      )
+    case "dashboards":
+      return (
+        <div className="h-full">
+          <DashboardsPanel />
         </div>
       )
     default:

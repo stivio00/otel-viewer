@@ -44,6 +44,8 @@ limitation).
 | `GET /api/metrics/{name}` | points of one metric; filters `service`, `start_ns`, `end_ns`, `limit` |
 | `GET /api/services` | per-service counts and first/last seen |
 | `GET /api/schema` | table + column listing |
+| `GET /api/dashboards` | list dashboards (builtin + user `~/.otel-viewer/dashboards/`) |
+| `GET /api/dashboards/{id}` | full dashboard document (inputs, panels, SQL templates) |
 
 ## SQL & maintenance
 

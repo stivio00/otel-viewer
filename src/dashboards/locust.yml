@@ -1,0 +1,222 @@
+name: locust
+title: Locust load test
+description: |
+  The classic locust web page rebuilt on raw telemetry: requests per second,
+  latency percentiles, user count, a latency-bucket heatmap and per-endpoint
+  request counts. Built for the aiolocust harness in locust-test/ which
+  exports the locust.current_users gauge and the cumulative
+  locust.client.duration histogram (series tagged with name + error.type).
+
+  SQL templates get $from_ns/$to_ns plus one token per input below; an empty
+  selection substitutes NULL, which the IS NULL branches turn into "no
+  filter".
+
+inputs:
+  - name: service
+    label: Service
+    type: service
+    default: ""
+  - name: route
+    label: Endpoint
+    type: attribute
+    table: metrics
+    key: name
+    default: ""
+  - name: err
+    label: Error type
+    type: attribute
+    table: metrics
+    key: error.type
+    default: ""
+
+panels:
+  - id: users_now
+    title: Users (now)
+    type: dial
+    unit: users
+    sql: |
+      SELECT ts_ns, coalesce(value_double, value_int) AS users
+      FROM metric_points
+      WHERE metric_name = 'locust.current_users'
+        AND ('$service' IS NULL OR service_name = '$service')
+        AND ts_ns BETWEEN $from_ns AND $to_ns
+      ORDER BY ts_ns DESC
+      LIMIT 1
+
+  - id: requests_total
+    title: Requests (in range)
+    type: stat
+    unit: req
+    sql: |
+      WITH pts AS (
+        SELECT series_attributes AS series, hist_count AS cnt, ts_ns
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
+          AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), d AS (
+        SELECT greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS inc
+        FROM pts
+      )
+      SELECT sum(inc) AS requests FROM d WHERE inc IS NOT NULL
+
+  - id: users
+    title: Users over time
+    type: line
+    unit: users
+    sql: |
+      SELECT to_timestamp(ts_ns / 1e9) AS ts, coalesce(value_double, value_int) AS users
+      FROM metric_points
+      WHERE metric_name = 'locust.current_users'
+        AND ('$service' IS NULL OR service_name = '$service')
+        AND ts_ns BETWEEN $from_ns AND $to_ns
+      ORDER BY ts_ns
+
+  - id: rps
+    title: Requests / second
+    type: line
+    unit: req/s
+    span: 2
+    sql: |
+      WITH pts AS (
+        SELECT ts_ns, series_attributes AS series, hist_count AS cnt
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
+          AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), d AS (
+        SELECT series, ts_ns,
+               greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS inc
+        FROM pts
+      ), b AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(ts_ns / 1e9)) AS ts, inc
+        FROM d
+        WHERE inc IS NOT NULL
+      )
+      SELECT ts, round(sum(inc) / 30.0, 2) AS rps
+      FROM b
+      GROUP BY ts
+      ORDER BY ts
+
+  - id: latency
+    title: Latency percentiles
+    type: line
+    unit: s
+    span: 2
+    sql: |
+      WITH pts AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(ts_ns / 1e9)) AS bucket, ts_ns,
+               hist_bounds::DOUBLE[] AS bounds, hist_bucket_counts::DOUBLE[] AS counts
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
+          AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), last AS (
+        SELECT bucket, bounds, counts
+        FROM (SELECT *, row_number() OVER (PARTITION BY bucket ORDER BY ts_ns DESC) AS rn FROM pts)
+        WHERE rn = 1
+      ), flat AS (
+        SELECT bucket, unnest(counts) AS c,
+               unnest(list_append(list_filter(bounds, b -> isfinite(b)), 'inf'::DOUBLE)) AS bound
+        FROM last
+      ), cum AS (
+        SELECT bucket, bound,
+               sum(c) OVER (PARTITION BY bucket ORDER BY bound ROWS UNBOUNDED PRECEDING) AS cum_n
+        FROM flat
+      ), tot AS (
+        SELECT bucket, sum(c) AS n FROM flat GROUP BY bucket
+      )
+      SELECT t.bucket AS ts,
+             coalesce(round(min(c.bound) FILTER (WHERE isfinite(c.bound) AND c.cum_n >= 0.50 * t.n), 3),
+                      round(max(c.bound) FILTER (WHERE isfinite(c.bound)), 3)) AS p50,
+             coalesce(round(min(c.bound) FILTER (WHERE isfinite(c.bound) AND c.cum_n >= 0.95 * t.n), 3),
+                      round(max(c.bound) FILTER (WHERE isfinite(c.bound)), 3)) AS p95,
+             coalesce(round(min(c.bound) FILTER (WHERE isfinite(c.bound) AND c.cum_n >= 0.99 * t.n), 3),
+                      round(max(c.bound) FILTER (WHERE isfinite(c.bound)), 3)) AS p99
+      FROM cum c JOIN tot t USING (bucket)
+      GROUP BY t.bucket
+      ORDER BY t.bucket
+
+  - id: heatmap
+    title: Latency distribution over time
+    type: heatmap
+    unit: req
+    span: 2
+    sql: |
+      WITH pts AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(ts_ns / 1e9)) AS bucket, ts_ns,
+               hist_bounds::DOUBLE[] AS bounds, hist_bucket_counts::DOUBLE[] AS counts
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), last AS (
+        SELECT bucket, bounds, counts
+        FROM (SELECT *, row_number() OVER (PARTITION BY bucket ORDER BY ts_ns DESC) AS rn FROM pts)
+        WHERE rn = 1
+      ), flat AS (
+        SELECT bucket AS ts,
+               unnest(list_prepend(0::DOUBLE, list_filter(bounds, b -> isfinite(b)))) AS y,
+               unnest(counts) AS weight
+        FROM last
+      )
+      SELECT ts, y, weight FROM flat WHERE weight IS NOT NULL AND isfinite(y) ORDER BY ts, y
+
+  - id: endpoints
+    title: Requests by endpoint
+    type: bar
+    unit: req
+    sql: |
+      WITH pts AS (
+        SELECT series_attributes AS series, hist_count AS cnt, ts_ns
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$err' IS NULL OR json_extract_string(series_attributes, '$."error.type"') = '$err')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), d AS (
+        SELECT json_extract_string(series, '$."name"') AS endpoint,
+               greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS inc
+        FROM pts
+      )
+      SELECT endpoint, sum(inc) AS requests
+      FROM d
+      WHERE inc IS NOT NULL AND endpoint IS NOT NULL
+      GROUP BY endpoint
+      ORDER BY requests DESC
+
+  - id: errors
+    title: Requests by error type
+    type: bar
+    unit: req
+    sql: |
+      WITH pts AS (
+        SELECT series_attributes AS series, hist_count AS cnt, ts_ns
+        FROM metric_points
+        WHERE metric_name = 'locust.client.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."name"') = '$route')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), d AS (
+        SELECT json_extract_string(series, '$."error.type"') AS error_type,
+               greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS inc
+        FROM pts
+      )
+      SELECT coalesce(error_type, '(ok)') AS error_type, sum(inc) AS requests
+      FROM d
+      WHERE inc IS NOT NULL
+      GROUP BY error_type
+      ORDER BY requests DESC

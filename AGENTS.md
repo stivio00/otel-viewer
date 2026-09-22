@@ -23,9 +23,9 @@ forms:
 
 | Path | Purpose |
 |---|---|
-| `src/` | collector library crate: gRPC ingestion (`grpc.rs`), DuckDB layer (`db.rs`), REST API + static UI (`api.rs`), query builders (`queries.rs`), read-only SQL guard (`sqlguard.rs`), demo data (`demo.rs`) |
+| `src/` | collector library crate: gRPC ingestion (`grpc.rs`), DuckDB layer (`db.rs`), REST API + static UI (`api.rs`), query builders (`queries.rs`), read-only SQL guard (`sqlguard.rs`), demo data (`demo.rs`), dashboards (`dashboards.rs` + `dashboards/*.yml`) |
 | `src-tauri/` | Tauri 2 desktop shell (`src/lib.rs`), bundler config (`tauri.conf.json`) |
-| `web/src/` | React UI: panels (`components/panels/`), API client (`lib/api.ts`) |
+| `web/src/` | React UI: panels (`components/panels/`), API client (`lib/api.ts`), chart-shape detection (`lib/chart.ts`), dashboard types/SQL rendering (`lib/dash.ts`) |
 | `locust-test/` | aiolocust load-test harness (uv venv) used to generate realistic telemetry |
 
 ## Commands
@@ -78,7 +78,28 @@ done. There is no rustfmt/clippy config beyond the defaults.
     strings, cast with `::DOUBLE[]`. Rates/percentiles must diff consecutive
     snapshots.
 - **Timestamps** from `/api/query` come back as ISO strings; HUGEINT values
-  come back as strings (DuckDB JSON limitation, `src/queries.rs`).
+  come back as strings (DuckDB JSON limitation, `src/queries.rs`). The web
+  chart layer (`lib/chart.ts` `toNum`/`toTimeMs`) parses numeric strings, so
+  HUGEINT columns still plot.
+- **Dashboards** (`src/dashboards.rs`, `web/src/lib/dash.ts`,
+  `components/panels/DashboardsPanel.tsx`): YAML docs from two sources —
+  `src/dashboards/*.yml` (embedded via rust-embed, ids `locust`/`dotnet`/
+  `python`) and `~/.otel-viewer/dashboards/*.yml` (rescanned per request on
+  dir mtime change; builtin docs are parsed once at startup — editing a
+  builtin yml in debug needs a restart, user files don't). Endpoints:
+  `GET /api/dashboards`, `GET /api/dashboards/{id}`. Panel SQL is templated
+  client-side in `renderSql` (lib/dash.ts): `$from_ns`/`$to_ns` numbers,
+  `$<input>` string literals, and an **empty input replaces the quoted
+  token `'$x'` including its quotes with bare NULL** — the
+  `('$x' IS NULL OR … = '$x')` idiom depends on this. Histogram panels must
+  diff cumulative counts, filter `+Inf` bounds with `isfinite()` and
+  coalesce open-bucket percentiles to the last finite bound (see the
+  built-in locust dashboard). Dials/stats read the first numeric column of
+  the last row — give their SQL `ORDER BY ts_ns DESC LIMIT 1`.
+- **Trace waterfall** (`TraceDetail.tsx`) has a sticky quarter-tick ruler +
+  background gridlines; the overlay shares the rows' exact
+  `grid-cols-[minmax(180px,32%)_1fr] gap-3 px-1` template so lines align
+  with the bar track — keep the classes in sync when changing row layout.
 - **Desktop app data** lives at `~/Library/Application Support/com.otelviewer.desktop/otel-viewer.duckdb`
   (macOS; equivalent app-data dir on Windows). Deleting it resets to demo data.
 

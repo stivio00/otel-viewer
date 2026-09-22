@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-export type Preset = "default" | "traces" | "logs" | "metrics" | "sql"
+export type Preset = "default" | "traces" | "logs" | "metrics" | "sql" | "dashboards"
 export type TimeRange = "5m" | "15m" | "1h" | "6h" | "24h" | "all"
 export type Theme = "dark" | "light"
 

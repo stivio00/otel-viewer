@@ -25,6 +25,10 @@ Docs: <https://stivio00.github.io/otel-viewer/> (source in [docs/](docs/)).
   per-series line charts
 - **SQL console** — read-only SQL against the live DuckDB, with automatic
   time-series charting of results
+- **Dashboards** — YAML-defined dashboards (3 built in: locust, .NET,
+  Python auto-instrumentation; add your own in
+  `~/.otel-viewer/dashboards/`) with time-range + service/attribute
+  filters, line/point/bar/histogram/gauge/stat/heatmap panels
 - **Storage info** — file size, block usage, per-table sizes (header `(i)`)
 - **Reset** — delete all telemetry data from the UI
 - Demo data seeding, CORS-free same-origin UI, live auto-refresh

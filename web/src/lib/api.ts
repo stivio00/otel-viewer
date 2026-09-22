@@ -1,3 +1,5 @@
+import type { DashboardDto, DashboardMetaDto } from "@/lib/dash"
+
 export interface Health {
   status: string
   version: string
@@ -294,6 +296,11 @@ export function runQuery(sql: string, limit = 1000): Promise<QueryResponse> {
 }
 
 export const fetchHealth = () => get<Health>("/api/health")
+export type { DashboardDto, DashboardMetaDto }
+export const fetchDashboards = () =>
+  get<{ dashboards: DashboardMetaDto[] }>("/api/dashboards")
+export const fetchDashboard = (id: string) =>
+  get<DashboardDto>(`/api/dashboards/${encodeURIComponent(id)}`)
 export const fetchStats = () => get<Stats>("/api/stats")
 export const fetchDbStats = () => get<DbStats>("/api/dbstats")
 export const fetchServices = () => get<{ services: ServiceInfo[] }>("/api/services")

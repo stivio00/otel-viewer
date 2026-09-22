@@ -1,0 +1,171 @@
+name: python
+title: Python service (auto-instrumentation)
+description: |
+  RED-style dashboard for a Python service using the OpenTelemetry Python
+  SDK / auto-instrumentation (Flask, FastAPI, Django instrumentations):
+  request rate, error share and latency percentiles from spans, plus panels
+  for the standard http.server.duration histogram and
+  http.server.active_requests gauge. The Endpoint selector filters on the
+  http.route span attribute.
+
+  The spans-based panels work for any instrumented Python service even when
+  the metrics above are not emitted.
+
+inputs:
+  - name: service
+    label: Service
+    type: service
+    default: ""
+  - name: route
+    label: HTTP route
+    type: attribute
+    table: spans
+    key: http.route
+    default: ""
+
+panels:
+  - id: rate
+    title: Requests / second (spans)
+    type: line
+    unit: req/s
+    sql: |
+      WITH b AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(start_ns / 1e9)) AS ts
+        FROM spans
+        WHERE ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(span_attributes, '$."http.route"') = '$route')
+          AND start_ns BETWEEN $from_ns AND $to_ns
+      )
+      SELECT ts, round(count(*) / 30.0, 2) AS rps
+      FROM b
+      GROUP BY ts
+      ORDER BY ts
+
+  - id: errors
+    title: Error share
+    type: line
+    unit: "%"
+    sql: |
+      WITH b AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(start_ns / 1e9)) AS ts,
+               (status_code >= 2) AS is_error
+        FROM spans
+        WHERE ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(span_attributes, '$."http.route"') = '$route')
+          AND start_ns BETWEEN $from_ns AND $to_ns
+      )
+      SELECT ts,
+             round(100.0 * sum(CASE WHEN is_error THEN 1 ELSE 0 END) / count(*), 2) AS err_pct
+      FROM b
+      GROUP BY ts
+      ORDER BY ts
+
+  - id: p95
+    title: Span duration p95
+    type: line
+    unit: ms
+    sql: |
+      WITH b AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(start_ns / 1e9)) AS ts, duration_ms
+        FROM spans
+        WHERE ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(span_attributes, '$."http.route"') = '$route')
+          AND start_ns BETWEEN $from_ns AND $to_ns
+      )
+      SELECT ts, round(quantile_disc(duration_ms, 0.95), 2) AS p95_ms
+      FROM b
+      GROUP BY ts
+      ORDER BY ts
+
+  - id: http_rps
+    title: HTTP request rate (http.server.duration)
+    type: line
+    unit: req/s
+    sql: |
+      WITH pts AS (
+        SELECT ts_ns, series_attributes AS series, hist_count AS cnt
+        FROM metric_points
+        WHERE metric_name = 'http.server.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."http.route"') = '$route')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), d AS (
+        SELECT series, ts_ns,
+               greatest(cnt - lag(cnt) OVER (PARTITION BY series ORDER BY ts_ns), 0) AS inc
+        FROM pts
+      ), b AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(ts_ns / 1e9)) AS ts, inc
+        FROM d
+        WHERE inc IS NOT NULL
+      )
+      SELECT ts, round(sum(inc) / 30.0, 2) AS rps
+      FROM b
+      GROUP BY ts
+      ORDER BY ts
+
+  - id: http_latency
+    title: HTTP latency percentiles
+    type: line
+    unit: ms
+    span: 2
+    sql: |
+      WITH pts AS (
+        SELECT time_bucket(INTERVAL '30 seconds', to_timestamp(ts_ns / 1e9)) AS bucket, ts_ns,
+               hist_bounds::DOUBLE[] AS bounds, hist_bucket_counts::DOUBLE[] AS counts
+        FROM metric_points
+        WHERE metric_name = 'http.server.duration'
+          AND hist_count > 0
+          AND ('$service' IS NULL OR service_name = '$service')
+          AND ('$route' IS NULL OR json_extract_string(series_attributes, '$."http.route"') = '$route')
+          AND ts_ns BETWEEN $from_ns AND $to_ns
+      ), last AS (
+        SELECT bucket, bounds, counts
+        FROM (SELECT *, row_number() OVER (PARTITION BY bucket ORDER BY ts_ns DESC) AS rn FROM pts)
+        WHERE rn = 1
+      ), flat AS (
+        SELECT bucket, unnest(counts) AS c,
+               unnest(list_append(list_filter(bounds, b -> isfinite(b)), 'inf'::DOUBLE)) AS bound
+        FROM last
+      ), cum AS (
+        SELECT bucket, bound,
+               sum(c) OVER (PARTITION BY bucket ORDER BY bound ROWS UNBOUNDED PRECEDING) AS cum_n
+        FROM flat
+      ), tot AS (
+        SELECT bucket, sum(c) AS n FROM flat GROUP BY bucket
+      )
+      SELECT t.bucket AS ts,
+             coalesce(round(min(c.bound) FILTER (WHERE isfinite(c.bound) AND c.cum_n >= 0.50 * t.n), 3),
+                      round(max(c.bound) FILTER (WHERE isfinite(c.bound)), 3)) AS p50,
+             coalesce(round(min(c.bound) FILTER (WHERE isfinite(c.bound) AND c.cum_n >= 0.95 * t.n), 3),
+                      round(max(c.bound) FILTER (WHERE isfinite(c.bound)), 3)) AS p95,
+             coalesce(round(min(c.bound) FILTER (WHERE isfinite(c.bound) AND c.cum_n >= 0.99 * t.n), 3),
+                      round(max(c.bound) FILTER (WHERE isfinite(c.bound)), 3)) AS p99
+      FROM cum c JOIN tot t USING (bucket)
+      GROUP BY t.bucket
+      ORDER BY t.bucket
+
+  - id: active
+    title: Active requests
+    type: line
+    unit: req
+    sql: |
+      SELECT to_timestamp(ts_ns / 1e9) AS ts, coalesce(value_double, value_int) AS active
+      FROM metric_points
+      WHERE metric_name = 'http.server.active_requests'
+        AND ('$service' IS NULL OR service_name = '$service')
+        AND ts_ns BETWEEN $from_ns AND $to_ns
+      ORDER BY ts_ns
+
+  - id: routes
+    title: Top routes
+    type: bar
+    unit: req
+    sql: |
+      SELECT coalesce(json_extract_string(span_attributes, '$."http.route"'), span_name) AS route,
+             count(*) AS requests
+      FROM spans
+      WHERE ('$service' IS NULL OR service_name = '$service')
+        AND start_ns BETWEEN $from_ns AND $to_ns
+      GROUP BY route
+      ORDER BY requests DESC

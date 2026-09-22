@@ -13,6 +13,7 @@ use rust_embed::Embed;
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 
+use crate::dashboards;
 use crate::db::Db;
 use crate::queries::{self, MetricDetailParams, MetricsParams, TracesParams};
 
@@ -40,6 +41,8 @@ pub fn router(db: Arc<Db>, meta: Meta) -> Router {
         .route("/api/metrics/{name}", get(metric_detail))
         .route("/api/query", post(query))
         .route("/api/reset", post(reset))
+        .route("/api/dashboards", get(dashboards_list))
+        .route("/api/dashboards/{id}", get(dashboard_detail))
         .fallback(not_found_or_static)
         .layer(CorsLayer::very_permissive())
         .layer(axum::Extension(meta))
@@ -168,6 +171,25 @@ async fn reset(State(db): State<Arc<Db>>) -> Result<Json<serde_json::Value>, Api
         .await
         .map_err(|e| ApiError::Bad(anyhow::anyhow!(e)))?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+/// List available dashboards (built-in + user-supplied).
+async fn dashboards_list() -> Json<dashboards::DashboardsResponse> {
+    Json(dashboards::DashboardsResponse {
+        dashboards: dashboards::list(),
+    })
+}
+
+/// Full dashboard definition by id.
+async fn dashboard_detail(Path(id): Path<String>) -> Response {
+    match dashboards::get(&id) {
+        Some(d) => Json(d).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": format!("unknown dashboard: {id}") })),
+        )
+            .into_response(),
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -6,7 +6,8 @@ import { oneDark } from "@codemirror/theme-one-dark"
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { LineChart as LineChartIcon, Play, Table2, Terminal } from "lucide-react"
 
-import { runQuery, type ColumnInfo, type QueryResponse } from "@/lib/api"
+import { runQuery, type QueryResponse } from "@/lib/api"
+import { detectPlot, type PlotShape } from "@/lib/chart"
 import { fmtNsTime, num, serviceColor } from "@/lib/format"
 import { useUi } from "@/lib/store"
 import { Panel, PanelGroup } from "@/components/Split"
@@ -86,87 +87,9 @@ const EXAMPLES: Array<{ label: string; sql: string }> = [
 
 // ---------------------------------------------------------------------------
 // Auto-detect plottable results (a time-ish column + numeric columns) and
-// render them as a line chart above the table.
+// render them as a line chart above the table. Shape detection lives in
+// lib/chart (shared with dashboards).
 // ---------------------------------------------------------------------------
-
-/** Value to epoch-ms when it looks like a timestamp, else null. */
-function toTimeMs(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) {
-    if (v >= 1e17) return v / 1e6 // ns
-    if (v >= 1e14) return v / 1e3 // us
-    if (v >= 1e11) return v // ms
-    if (v >= 1e8) return v * 1e3 // s
-    return null
-  }
-  if (typeof v === "string" && /[-:T ]/.test(v)) {
-    const t = Date.parse(v)
-    return Number.isNaN(t) ? null : t
-  }
-  return null
-}
-
-const TIME_NAME = /^(ts|t_|_?ts$|time|timestamp|when|date)/i
-
-interface PlotShape {
-  xCol: string
-  series: string[]
-  rows: Array<Record<string, number | null>>
-}
-
-function detectPlot(result: QueryResponse): PlotShape | null {
-  const sample = result.rows.slice(0, 50)
-  if (sample.length < 2) return null
-
-  const parses = (c: ColumnInfo) => {
-    let nonNull = 0
-    for (const r of sample) {
-      const v = r[c.name]
-      if (v == null) continue
-      if (toTimeMs(v) == null) return false
-      nonNull++
-    }
-    return nonNull > 0
-  }
-
-  const xCol =
-    result.columns.find((c) => TIME_NAME.test(c.name) && parses(c)) ??
-    result.columns.find((c) => parses(c))
-  if (!xCol) return null
-
-  const numericCols = result.columns.filter((c) => {
-    if (c.name === xCol.name) return false
-    let nonNull = 0
-    for (const r of sample) {
-      const v = r[c.name]
-      if (v == null) continue
-      if (typeof v !== "number" || !Number.isFinite(v)) return false
-      nonNull++
-    }
-    return nonNull > 0
-  })
-  // Skip columns that are themselves epoch timestamps (e.g. start_ns/end_ns
-  // in SELECT * FROM spans) — they are never useful as y-values.
-  const series = numericCols
-    .filter((c) => !parses(c))
-    .map((c) => c.name)
-    .slice(0, 8)
-  if (series.length === 0) return null
-
-  const rows: Array<Record<string, number | null>> = []
-  for (const r of result.rows) {
-    const x = toTimeMs(r[xCol.name])
-    if (x == null) continue
-    const row: Record<string, number | null> = { x }
-    for (const name of series) {
-      const v = r[name]
-      row[name] = typeof v === "number" && Number.isFinite(v) ? v : null
-    }
-    rows.push(row)
-  }
-  if (rows.length < 2) return null
-  rows.sort((a, b) => (a.x ?? 0) - (b.x ?? 0))
-  return { xCol: xCol.name, series, rows }
-}
 
 function ResultChart({ plot }: { plot: PlotShape }) {
   return (

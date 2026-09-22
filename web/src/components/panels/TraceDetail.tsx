@@ -100,7 +100,24 @@ export function TraceDetail({ traceId }: { traceId: string }) {
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="max-h-[45%] min-h-0 shrink-0 border-b">
-          <div className="min-w-[640px] px-3 py-2">
+          <div className="relative min-w-[640px] px-3 py-2">
+            <TimeRuler totalNs={layout.totalNs} />
+            {/* Background time grid: same grid template as the span rows so
+                the quarter lines land exactly on the bar track. */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 z-0 px-3 py-2">
+              <div className="grid h-full grid-cols-[minmax(180px,32%)_1fr] gap-3 px-1">
+                <div />
+                <div className="relative">
+                  {[0, 25, 50, 75, 100].map((pct) => (
+                    <div
+                      key={pct}
+                      className="bg-border/70 absolute inset-y-0 w-px"
+                      style={{ left: `${pct}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
             {layout.spans.map(({ span, depth, leftPct, widthPct }) => {
               const st = statusBadge(span.status_code)
               const active = span.span_id === selectedSpanId
@@ -150,6 +167,31 @@ export function TraceDetail({ traceId }: { traceId: string }) {
         )}
       </div>
     </PanelChrome>
+  )
+}
+
+/** Sticky ruler above the waterfall: offset labels at quarter ticks. */
+function TimeRuler({ totalNs }: { totalNs: number }) {
+  const ticks = [0, 25, 50, 75, 100]
+  return (
+    <div className="bg-card/95 sticky top-0 z-10 grid grid-cols-[minmax(180px,32%)_1fr] items-center gap-3 px-1 py-1 backdrop-blur">
+      <span className="text-muted-foreground text-[10px] tracking-wide uppercase">span</span>
+      <div className="relative h-3">
+        {ticks.map((pct) => (
+          <span
+            key={pct}
+            className="text-muted-foreground absolute top-0 text-[9px] tabular-nums"
+            style={{
+              left: `${pct}%`,
+              transform:
+                pct === 0 ? "none" : pct === 100 ? "translateX(-100%)" : "translateX(-50%)",
+            }}
+          >
+            +{fmtNs(Math.round((totalNs * pct) / 100))}
+          </span>
+        ))}
+      </div>
+    </div>
   )
 }
 
