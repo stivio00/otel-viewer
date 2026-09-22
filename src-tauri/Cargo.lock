@@ -3173,7 +3173,7 @@ dependencies = [
 
 [[package]]
 name = "otel-viewer"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -3202,7 +3202,7 @@ dependencies = [
 
 [[package]]
 name = "otel-viewer-tauri"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
