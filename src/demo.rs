@@ -148,7 +148,10 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
         s.span_attributes = attrs(&[
             ("http.request.method", json!(method)),
             ("url.path", json!(path)),
-            ("http.response.status_code", json!(if is_error { 500 } else { 200 })),
+            (
+                "http.response.status_code",
+                json!(if is_error { 500 } else { 200 }),
+            ),
             ("user.id", json!(rng.random_range(1..1000))),
         ]);
         let root_id = s.span_id.clone();
@@ -156,23 +159,62 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
 
         // auth child
         let auth_ms = rng.random_range(0.8..6.0);
-        let mut a = make_span(&mut rng, &trace_id, "authorize".to_string(), 3, "auth-service", Some(root_id.clone()), auth_ms, cursor, false);
-        a.span_attributes = attrs(&[("grpc.method", json!("auth.Authorize")), ("auth.provider", json!("oidc"))]);
+        let mut a = make_span(
+            &mut rng,
+            &trace_id,
+            "authorize".to_string(),
+            3,
+            "auth-service",
+            Some(root_id.clone()),
+            auth_ms,
+            cursor,
+            false,
+        );
+        a.span_attributes = attrs(&[
+            ("grpc.method", json!("auth.Authorize")),
+            ("auth.provider", json!("oidc")),
+        ]);
         spans.push(a);
         cursor += (auth_ms * 1e6) as i64;
 
         // downstream billing server span sometimes
         if rng.random_bool(0.6) {
             let bill_ms = rng.random_range(5.0..120.0);
-            let mut b = make_span(&mut rng, &trace_id, "POST /billing/charge".to_string(), 2, "billing-service", Some(root_id.clone()), bill_ms, cursor, false);
-            b.span_attributes = attrs(&[("messaging.destination", json!("billing.queue")), ("amount", json!(rng.random_range(1..250)))]);
+            let mut b = make_span(
+                &mut rng,
+                &trace_id,
+                "POST /billing/charge".to_string(),
+                2,
+                "billing-service",
+                Some(root_id.clone()),
+                bill_ms,
+                cursor,
+                false,
+            );
+            b.span_attributes = attrs(&[
+                ("messaging.destination", json!("billing.queue")),
+                ("amount", json!(rng.random_range(1..250))),
+            ]);
             let bill_id = b.span_id.clone();
             spans.push(b);
 
             let q = DB_QUERIES[rng.random_range(0..DB_QUERIES.len())].to_string();
             let qms = rng.random_range(1.0..25.0);
-            let mut qs = make_span(&mut rng, &trace_id, q.clone(), 3, "postgres", Some(bill_id), qms, cursor, false);
-            qs.span_attributes = attrs(&[("db.system", json!("postgresql")), ("db.statement", json!(q))]);
+            let mut qs = make_span(
+                &mut rng,
+                &trace_id,
+                q.clone(),
+                3,
+                "postgres",
+                Some(bill_id),
+                qms,
+                cursor,
+                false,
+            );
+            qs.span_attributes = attrs(&[
+                ("db.system", json!("postgresql")),
+                ("db.statement", json!(q)),
+            ]);
             spans.push(qs);
             cursor += (bill_ms * 1e6) as i64;
         }
@@ -180,21 +222,52 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
         // db child on gateway
         let q = DB_QUERIES[rng.random_range(0..DB_QUERIES.len())].to_string();
         let qms = rng.random_range(1.0..30.0);
-        let mut qs = make_span(&mut rng, &trace_id, q.clone(), 3, "postgres", Some(root_id.clone()), qms, cursor, false);
-        qs.span_attributes = attrs(&[("db.system", json!("postgresql")), ("db.statement", json!(q))]);
+        let mut qs = make_span(
+            &mut rng,
+            &trace_id,
+            q.clone(),
+            3,
+            "postgres",
+            Some(root_id.clone()),
+            qms,
+            cursor,
+            false,
+        );
+        qs.span_attributes = attrs(&[
+            ("db.system", json!("postgresql")),
+            ("db.statement", json!(q)),
+        ]);
         spans.push(qs);
 
         // redis child sometimes
         if rng.random_bool(0.5) {
             let rms = rng.random_range(0.2..3.0);
-            let mut rs = make_span(&mut rng, &trace_id, "GET cache:user".to_string(), 3, "redis", Some(root_id.clone()), rms, cursor, false);
-            rs.span_attributes = attrs(&[("db.system", json!("redis")), ("cache.hit", json!(rng.random_bool(0.8)))]);
+            let mut rs = make_span(
+                &mut rng,
+                &trace_id,
+                "GET cache:user".to_string(),
+                3,
+                "redis",
+                Some(root_id.clone()),
+                rms,
+                cursor,
+                false,
+            );
+            rs.span_attributes = attrs(&[
+                ("db.system", json!("redis")),
+                ("cache.hit", json!(rng.random_bool(0.8))),
+            ]);
             spans.push(rs);
         }
 
         // logs for this trace
-        let log_jitter = |rng: &mut ThreadRng| rng.random_range(0..(gateway_ms as i64).max(1)) * 1_000_000;
-        let make_trace_log = |sev_text: &str, sev_num: i32, body: &str, extra: Vec<(&str, serde_json::Value)>, rng: &mut ThreadRng| {
+        let log_jitter =
+            |rng: &mut ThreadRng| rng.random_range(0..(gateway_ms as i64).max(1)) * 1_000_000;
+        let make_trace_log = |sev_text: &str,
+                              sev_num: i32,
+                              body: &str,
+                              extra: Vec<(&str, serde_json::Value)>,
+                              rng: &mut ThreadRng| {
             let mut pairs = vec![
                 ("request_id", json!(trace_id[..16.min(trace_id.len())])),
                 ("http.route", json!(route)),
@@ -222,17 +295,53 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
             }
         };
 
-        logs.push(make_trace_log("INFO", 9, "request started", vec![], &mut rng));
+        logs.push(make_trace_log(
+            "INFO",
+            9,
+            "request started",
+            vec![],
+            &mut rng,
+        ));
         if is_error {
-            logs.push(make_trace_log("ERROR", 17, "upstream billing call failed: connection refused", vec![], &mut rng));
-            logs.push(make_trace_log("WARN", 13, "retrying with backoff", vec![("retry.count", json!(2))], &mut rng));
+            logs.push(make_trace_log(
+                "ERROR",
+                17,
+                "upstream billing call failed: connection refused",
+                vec![],
+                &mut rng,
+            ));
+            logs.push(make_trace_log(
+                "WARN",
+                13,
+                "retrying with backoff",
+                vec![("retry.count", json!(2))],
+                &mut rng,
+            ));
         } else if gateway_ms > 200.0 {
-            logs.push(make_trace_log("WARN", 13, "slow request detected", vec![("duration_ms", json!(gateway_ms.round()))], &mut rng));
+            logs.push(make_trace_log(
+                "WARN",
+                13,
+                "slow request detected",
+                vec![("duration_ms", json!(gateway_ms.round()))],
+                &mut rng,
+            ));
         } else {
-            logs.push(make_trace_log("DEBUG", 5, "request completed", vec![("duration_ms", json!(gateway_ms.round()))], &mut rng));
+            logs.push(make_trace_log(
+                "DEBUG",
+                5,
+                "request completed",
+                vec![("duration_ms", json!(gateway_ms.round()))],
+                &mut rng,
+            ));
         }
         if i % 7 == 0 {
-            logs.push(make_trace_log("INFO", 9, "user session refreshed", vec![("user.id", json!(rng.random_range(1..1000)))], &mut rng));
+            logs.push(make_trace_log(
+                "INFO",
+                9,
+                "user session refreshed",
+                vec![("user.id", json!(rng.random_range(1..1000)))],
+                &mut rng,
+            ));
         }
     }
 
@@ -249,7 +358,11 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
             observed_time_ns: None,
             severity_text: Some(sev.0.to_string()),
             severity_number: sev.1,
-            service_name: if i % 2 == 0 { "api-gateway".to_string() } else { "billing-service".to_string() },
+            service_name: if i % 2 == 0 {
+                "api-gateway".to_string()
+            } else {
+                "billing-service".to_string()
+            },
             scope_name: Some("oteldemo.jobs".to_string()),
             scope_version: Some("1.0.0".to_string()),
             schema_url: None,
@@ -258,7 +371,10 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
             span_id: None,
             event_name: None,
             attributes: attrs(&[("job.name", json!("cleanup")), ("attempt", json!(i % 3))]),
-            resource_attributes: attrs(&[("service.name", json!("api-gateway")), ("deployment.environment", json!("production"))]),
+            resource_attributes: attrs(&[
+                ("service.name", json!("api-gateway")),
+                ("deployment.environment", json!("production")),
+            ]),
             flags: 0,
         });
     }
@@ -370,7 +486,9 @@ fn build_demo_data() -> (Vec<SpanRow>, Vec<LogRow>, Vec<MetricPointRow>) {
             remaining = remaining.saturating_sub(c);
         }
         bucket_counts[bounds.len() / 2] += remaining; // bulk lands mid buckets
-        let sum: f64 = bounds.iter().zip(bucket_counts.iter())
+        let sum: f64 = bounds
+            .iter()
+            .zip(bucket_counts.iter())
             .map(|(b, c)| b * (*c as f64))
             .sum::<f64>()
             + bucket_counts.last().copied().unwrap_or(0) as f64 * 1200.0;
@@ -508,6 +626,8 @@ pub async fn seed(db: &Arc<Db>) -> anyhow::Result<usize> {
     let count = spans.len() + logs.len() + points.len();
     db.insert_spans(spans).await.map_err(anyhow::Error::msg)?;
     db.insert_logs(logs).await.map_err(anyhow::Error::msg)?;
-    db.insert_metrics(points).await.map_err(anyhow::Error::msg)?;
+    db.insert_metrics(points)
+        .await
+        .map_err(anyhow::Error::msg)?;
     Ok(count)
 }

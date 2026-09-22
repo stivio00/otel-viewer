@@ -3,9 +3,9 @@
 //! to tokio's blocking pool.
 
 use duckdb::{Connection, Transaction};
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{Mutex, mpsc, oneshot};
 
-use crate::rows::{self, LogRow, MetricPointRow, SpanRow, SCHEMA_SQL};
+use crate::rows::{self, LogRow, MetricPointRow, SCHEMA_SQL, SpanRow};
 
 type Ack = oneshot::Sender<Result<(), String>>;
 
@@ -141,7 +141,9 @@ fn run_job(conn: &mut Connection, (job, ack): (DbJob, Ack)) {
             DbJob::Logs(rows) => rows::insert_logs(&tx, rows).map_err(es)?,
             DbJob::Metrics(rows) => rows::insert_metrics(&tx, rows).map_err(es)?,
             DbJob::Reset => tx
-                .execute_batch("DELETE FROM spans; DELETE FROM log_records; DELETE FROM metric_points;")
+                .execute_batch(
+                    "DELETE FROM spans; DELETE FROM log_records; DELETE FROM metric_points;",
+                )
                 .map_err(es)?,
         }
         tx.commit().map_err(es)

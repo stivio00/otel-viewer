@@ -3,16 +3,14 @@
 use crate::proto::opentelemetry::proto as otelpb;
 use crate::rows::{LogRow, MetricPointRow, SpanRow};
 use otelpb::{
-    common::v1::{AnyValue, KeyValue},
     collector::{
-        logs::v1::ExportLogsServiceRequest,
-        metrics::v1::ExportMetricsServiceRequest,
+        logs::v1::ExportLogsServiceRequest, metrics::v1::ExportMetricsServiceRequest,
         trace::v1::ExportTraceServiceRequest,
     },
+    common::v1::{AnyValue, KeyValue},
     metrics::v1::{
-        metric::Data, exemplar, exponential_histogram_data_point::Buckets,
-        number_data_point, ExponentialHistogramDataPoint, HistogramDataPoint, NumberDataPoint,
-        SummaryDataPoint,
+        ExponentialHistogramDataPoint, HistogramDataPoint, NumberDataPoint, SummaryDataPoint,
+        exemplar, exponential_histogram_data_point::Buckets, metric::Data, number_data_point,
     },
     resource::v1::Resource,
     trace::v1::{Span, span},
@@ -147,7 +145,13 @@ pub fn trace_request(req: &ExportTraceServiceRequest) -> Vec<SpanRow> {
             let (scope_name, scope_version) = scope_parts(&ss.scope);
             let schema_url = opt_str(&ss.schema_url).or_else(|| opt_str(&rs.schema_url));
             for span in &ss.spans {
-                rows.push(span_row(span, &ctx, &scope_name, &scope_version, &schema_url));
+                rows.push(span_row(
+                    span,
+                    &ctx,
+                    &scope_name,
+                    &scope_version,
+                    &schema_url,
+                ));
             }
         }
     }
@@ -338,7 +342,11 @@ pub fn metrics_request(req: &ExportMetricsServiceRequest) -> Vec<MetricPointRow>
                     }
                     Data::ExponentialHistogram(h) => {
                         for dp in &h.data_points {
-                            push(exp_histogram_row(&base, Some(h.aggregation_temporality), dp));
+                            push(exp_histogram_row(
+                                &base,
+                                Some(h.aggregation_temporality),
+                                dp,
+                            ));
                         }
                     }
                     Data::Summary(s) => {
@@ -412,7 +420,11 @@ fn number_row(
     }
 }
 
-fn histogram_row(base: &PointBase, temporality: Option<i32>, dp: &HistogramDataPoint) -> MetricPointRow {
+fn histogram_row(
+    base: &PointBase,
+    temporality: Option<i32>,
+    dp: &HistogramDataPoint,
+) -> MetricPointRow {
     MetricPointRow {
         metric_name: base.metric_name.clone(),
         metric_type: "histogram".to_string(),
@@ -436,9 +448,17 @@ fn histogram_row(base: &PointBase, temporality: Option<i32>, dp: &HistogramDataP
         hist_sum: dp.sum,
         hist_min: dp.min,
         hist_max: dp.max,
-        hist_bounds: json_arr(&dp.explicit_bounds.iter().map(|b| dnum(*b)).collect::<Vec<_>>()),
+        hist_bounds: json_arr(
+            &dp.explicit_bounds
+                .iter()
+                .map(|b| dnum(*b))
+                .collect::<Vec<_>>(),
+        ),
         hist_bucket_counts: json_arr(
-            &dp.bucket_counts.iter().map(|c| json!(c)).collect::<Vec<_>>(),
+            &dp.bucket_counts
+                .iter()
+                .map(|c| json!(c))
+                .collect::<Vec<_>>(),
         ),
         exp_zero_count: None,
         exp_scale: None,

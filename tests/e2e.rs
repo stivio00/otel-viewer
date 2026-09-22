@@ -6,25 +6,18 @@ use std::time::Duration;
 
 use otel_viewer::proto::opentelemetry::proto::{
     collector::{
-        logs::v1::{
-            ExportLogsServiceRequest, logs_service_client::LogsServiceClient,
-        },
-        metrics::v1::{
-            ExportMetricsServiceRequest, metrics_service_client::MetricsServiceClient,
-        },
-        trace::v1::{
-            ExportTraceServiceRequest, trace_service_client::TraceServiceClient,
-        },
+        logs::v1::{ExportLogsServiceRequest, logs_service_client::LogsServiceClient},
+        metrics::v1::{ExportMetricsServiceRequest, metrics_service_client::MetricsServiceClient},
+        trace::v1::{ExportTraceServiceRequest, trace_service_client::TraceServiceClient},
     },
-    common::v1::{any_value::Value as AnyVal, AnyValue, KeyValue},
+    common::v1::{AnyValue, KeyValue, any_value::Value as AnyVal},
     logs::v1::{LogRecord, ResourceLogs, ScopeLogs},
     metrics::v1::{
-        metric::Data,
+        Metric, NumberDataPoint, ResourceMetrics, ScopeMetrics, Sum, metric::Data,
         number_data_point::Value as NumVal,
-        Metric, NumberDataPoint, ResourceMetrics, ScopeMetrics, Sum,
     },
     resource::v1::Resource,
-    trace::v1::{Span, Status, ResourceSpans, ScopeSpans},
+    trace::v1::{ResourceSpans, ScopeSpans, Span, Status},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -38,7 +31,10 @@ fn kv(k: &str, v: &str) -> KeyValue {
     }
 }
 
-fn scope(name: &str, version: Option<&str>) -> otel_viewer::proto::opentelemetry::proto::common::v1::InstrumentationScope {
+fn scope(
+    name: &str,
+    version: Option<&str>,
+) -> otel_viewer::proto::opentelemetry::proto::common::v1::InstrumentationScope {
     otel_viewer::proto::opentelemetry::proto::common::v1::InstrumentationScope {
         name: name.to_string(),
         version: version.unwrap_or_default().to_string(),
@@ -78,7 +74,9 @@ async fn end_to_end() -> anyhow::Result<()> {
             seed_demo: false,
         };
         let shutdown = shutdown.clone();
-        tokio::spawn(async move { otel_viewer::run(&cfg, http_listener, grpc_listener, shutdown).await })
+        tokio::spawn(
+            async move { otel_viewer::run(&cfg, http_listener, grpc_listener, shutdown).await },
+        )
     };
     tokio::time::sleep(Duration::from_millis(300)).await;
 
@@ -108,12 +106,14 @@ async fn end_to_end() -> anyhow::Result<()> {
                         end_time_unix_nano: now + 50_000_000,
                         attributes: vec![kv("http.route", "/users")],
                         dropped_attributes_count: 0,
-                        events: vec![otel_viewer::proto::opentelemetry::proto::trace::v1::span::Event {
-                            time_unix_nano: now + 1_000_000,
-                            name: "cache.miss".to_string(),
-                            attributes: vec![kv("key", "user:1")],
-                            dropped_attributes_count: 0,
-                        }],
+                        events: vec![
+                            otel_viewer::proto::opentelemetry::proto::trace::v1::span::Event {
+                                time_unix_nano: now + 1_000_000,
+                                name: "cache.miss".to_string(),
+                                attributes: vec![kv("key", "user:1")],
+                                dropped_attributes_count: 0,
+                            },
+                        ],
                         dropped_events_count: 0,
                         links: vec![],
                         dropped_links_count: 0,
@@ -267,7 +267,12 @@ async fn end_to_end() -> anyhow::Result<()> {
     let client = reqwest::Client::new();
 
     // -- stats ---------------------------------------------------------
-    let stats: serde_json::Value = client.get(format!("{http}/api/stats")).send().await?.json().await?;
+    let stats: serde_json::Value = client
+        .get(format!("{http}/api/stats"))
+        .send()
+        .await?
+        .json()
+        .await?;
     assert_eq!(stats["spans"], 2);
     assert_eq!(stats["traces"], 1);
     assert_eq!(stats["logs"], 2);
@@ -276,7 +281,9 @@ async fn end_to_end() -> anyhow::Result<()> {
 
     // -- traces list ----------------------------------------------------
     let traces: serde_json::Value = client
-        .get(format!("{http}/api/traces?service=e2e-service&errors_only=true"))
+        .get(format!(
+            "{http}/api/traces?service=e2e-service&errors_only=true"
+        ))
         .send()
         .await?
         .json()
@@ -313,14 +320,16 @@ async fn end_to_end() -> anyhow::Result<()> {
     assert_eq!(detail["spans"][0]["span_name"], "GET /users");
     assert_eq!(detail["spans"][1]["parent_span_id"], hex_str(&span_id(1)));
     assert_eq!(
-        detail["spans"][0]["attributes"]["http.route"],
-        "/users",
+        detail["spans"][0]["attributes"]["http.route"], "/users",
         "span attributes should be parsed JSON"
     );
     assert_eq!(detail["spans"][0]["events"][0]["name"], "cache.miss");
 
     // 404 for unknown trace
-    let resp = client.get(format!("{http}/api/traces/deadbeef")).send().await?;
+    let resp = client
+        .get(format!("{http}/api/traces/deadbeef"))
+        .send()
+        .await?;
     assert_eq!(resp.status(), reqwest::StatusCode::NOT_FOUND);
 
     // -- logs -------------------------------------------------------------
@@ -343,7 +352,10 @@ async fn end_to_end() -> anyhow::Result<()> {
     assert_eq!(log_search["total"], 1);
 
     let trace_logs: serde_json::Value = client
-        .get(format!("{http}/api/logs?trace_id={}", hex_str(&trace_id(1))))
+        .get(format!(
+            "{http}/api/logs?trace_id={}",
+            hex_str(&trace_id(1))
+        ))
         .send()
         .await?
         .json()
@@ -371,11 +383,21 @@ async fn end_to_end() -> anyhow::Result<()> {
     assert_eq!(mdetail["points"][0]["hist_sum"], 123.0);
 
     // -- services & schema ---------------------------------------------------
-    let services: serde_json::Value = client.get(format!("{http}/api/services")).send().await?.json().await?;
+    let services: serde_json::Value = client
+        .get(format!("{http}/api/services"))
+        .send()
+        .await?
+        .json()
+        .await?;
     assert_eq!(services["services"][0]["name"], "e2e-service");
     assert_eq!(services["services"][0]["span_count"], 2);
 
-    let schema: serde_json::Value = client.get(format!("{http}/api/schema")).send().await?.json().await?;
+    let schema: serde_json::Value = client
+        .get(format!("{http}/api/schema"))
+        .send()
+        .await?
+        .json()
+        .await?;
     let tables: Vec<String> = schema["tables"]
         .as_array()
         .unwrap()
@@ -407,7 +429,9 @@ async fn end_to_end() -> anyhow::Result<()> {
     // auto limit applied
     let limited: serde_json::Value = client
         .post(format!("{http}/api/query"))
-        .json(&serde_json::json!({"sql": "SELECT 1 AS x FROM generate_series(1, 100)", "limit": 10}))
+        .json(
+            &serde_json::json!({"sql": "SELECT 1 AS x FROM generate_series(1, 100)", "limit": 10}),
+        )
         .send()
         .await?
         .json()
@@ -419,7 +443,7 @@ async fn end_to_end() -> anyhow::Result<()> {
     let index = client.get(format!("{http}/")).send().await?;
     assert!(index.status().is_success());
     let body = index.text().await?;
-    assert!(body.contains("<") , "index should be html");
+    assert!(body.contains("<"), "index should be html");
 
     shutdown.cancel();
     let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;

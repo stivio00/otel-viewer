@@ -88,9 +88,7 @@ async fn schema(State(db): State<Arc<Db>>) -> Result<Json<queries::SchemaRespons
     Ok(Json(res))
 }
 
-async fn services(
-    State(db): State<Arc<Db>>,
-) -> Result<Json<queries::ServicesResponse>, ApiError> {
+async fn services(State(db): State<Arc<Db>>) -> Result<Json<queries::ServicesResponse>, ApiError> {
     let res = db.read(queries::services).await?;
     Ok(Json(res))
 }
@@ -166,7 +164,9 @@ async fn query(
 
 /// Delete all telemetry data (spans, logs, metric points).
 async fn reset(State(db): State<Arc<Db>>) -> Result<Json<serde_json::Value>, ApiError> {
-    db.reset().await.map_err(|e| ApiError::Bad(anyhow::anyhow!(e)))?;
+    db.reset()
+        .await
+        .map_err(|e| ApiError::Bad(anyhow::anyhow!(e)))?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
@@ -239,7 +239,9 @@ fn serve_asset(path: &str) -> Option<Response> {
             },
         ),
     ];
-    (StatusCode::OK, headers, asset.data.into_owned()).into_response().into()
+    (StatusCode::OK, headers, asset.data.into_owned())
+        .into_response()
+        .into()
 }
 
 fn index_response() -> Option<Response> {

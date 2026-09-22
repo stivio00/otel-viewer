@@ -59,10 +59,7 @@ pub async fn run_with_db(
         l.set_nonblocking(true)?;
         tokio::net::TcpListener::from_std(l)?
     };
-    let otlp_addr = grpc_listener
-        .local_addr()
-        .ok()
-        .map(|a| a.to_string());
+    let otlp_addr = grpc_listener.local_addr().ok().map(|a| a.to_string());
     let grpc_listener = {
         let l = grpc_listener;
         l.set_nonblocking(true)?;

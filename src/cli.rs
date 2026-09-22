@@ -14,11 +14,21 @@ pub struct Cli {
     pub file: Option<PathBuf>,
 
     /// Host and port used to serve the web UI and REST API.
-    #[arg(short = 'h', long = "host", default_value = "localhost:6666", value_name = "HOST:PORT")]
+    #[arg(
+        short = 'h',
+        long = "host",
+        default_value = "localhost:6666",
+        value_name = "HOST:PORT"
+    )]
     pub host: String,
 
     /// Listen address for the OTLP gRPC receiver.
-    #[arg(short = 'o', long = "otlp", default_value = "0.0.0.0:4317", value_name = "HOST:PORT")]
+    #[arg(
+        short = 'o',
+        long = "otlp",
+        default_value = "0.0.0.0:4317",
+        value_name = "HOST:PORT"
+    )]
     pub otlp: String,
 
     /// Seed the database with demo telemetry on startup (ignored when the

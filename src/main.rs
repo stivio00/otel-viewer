@@ -23,8 +23,7 @@ async fn main() -> anyhow::Result<()> {
     };
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| level.into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| level.into()),
         )
         .init();
 
@@ -61,7 +60,8 @@ otel-viewer {}
         tokio::spawn(async move {
             #[cfg(unix)]
             {
-                let term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate());
+                let term =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate());
                 tokio::select! {
                     _ = tokio::signal::ctrl_c() => {}
                     _ = async {

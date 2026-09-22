@@ -5,10 +5,40 @@ use anyhow::bail;
 const ALLOWED_START: [&str; 6] = ["select", "with", "show", "describe", "explain", "summarize"];
 
 const FORBIDDEN: &[&str] = &[
-    "insert", "update", "delete", "replace", "merge", "drop", "create", "alter", "truncate",
-    "attach", "detach", "copy", "export", "import", "call", "pragma", "set", "install", "load",
-    "use", "checkpoint", "vacuum", "analyze", "analyse", "grant", "revoke", "begin", "commit",
-    "rollback", "prepare", "execute", "comment", "snapshot", "restore",
+    "insert",
+    "update",
+    "delete",
+    "replace",
+    "merge",
+    "drop",
+    "create",
+    "alter",
+    "truncate",
+    "attach",
+    "detach",
+    "copy",
+    "export",
+    "import",
+    "call",
+    "pragma",
+    "set",
+    "install",
+    "load",
+    "use",
+    "checkpoint",
+    "vacuum",
+    "analyze",
+    "analyse",
+    "grant",
+    "revoke",
+    "begin",
+    "commit",
+    "rollback",
+    "prepare",
+    "execute",
+    "comment",
+    "snapshot",
+    "restore",
 ];
 
 /// Validate that `sql` is a single read-only statement. Returns the cleaned
@@ -169,7 +199,10 @@ mod tests {
             maybe_add_limit("SELECT * FROM spans", 10),
             "SELECT * FROM (SELECT * FROM spans) _otv_sub LIMIT 10"
         );
-        assert_eq!(maybe_add_limit("SELECT * FROM spans LIMIT 3", 10), "SELECT * FROM spans LIMIT 3");
+        assert_eq!(
+            maybe_add_limit("SELECT * FROM spans LIMIT 3", 10),
+            "SELECT * FROM spans LIMIT 3"
+        );
         assert_eq!(maybe_add_limit("SHOW TABLES", 10), "SHOW TABLES");
         // limit inside a literal does not count
         let q = "SELECT 'limit' AS x FROM t";

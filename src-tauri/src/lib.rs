@@ -103,9 +103,8 @@ async fn proxy_request(
             for (name, value) in parts.headers.iter() {
                 b = b.header(name, value);
             }
-            b.body(bytes.as_ref().to_vec().into()).unwrap_or_else(|_| {
-                tauri_http::Response::new(Cow::Borrowed(&[] as &[u8]))
-            })
+            b.body(bytes.as_ref().to_vec().into())
+                .unwrap_or_else(|_| tauri_http::Response::new(Cow::Borrowed(&[] as &[u8])))
         }
         Err(e) => error_response(500, format!("router error: {e}")),
     }

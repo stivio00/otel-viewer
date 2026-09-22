@@ -1,7 +1,7 @@
 //! Read queries and response DTOs for the REST API.
 
-use duckdb::{Connection, Row, params_from_iter};
 use duckdb::types::{TimeUnit, Value as PVal, ValueRef};
+use duckdb::{Connection, Row, params_from_iter};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -316,8 +316,7 @@ fn query_one<T>(
     args: Vec<PVal>,
     map: impl FnOnce(&Row) -> anyhow::Result<T>,
 ) -> anyhow::Result<T> {
-    query_opt(conn, sql, args, map)?
-        .ok_or_else(|| anyhow::anyhow!("query returned no rows"))
+    query_opt(conn, sql, args, map)?.ok_or_else(|| anyhow::anyhow!("query returned no rows"))
 }
 
 fn severity_min(s: &str) -> Option<i64> {
@@ -526,9 +525,7 @@ pub fn logs_list(conn: &Connection, p: &LogsParams) -> anyhow::Result<LogsRespon
 fn log_row(r: &Row) -> anyhow::Result<LogDto> {
     Ok(LogDto {
         time_ns: ns(r.get::<_, i64>("time_ns")?),
-        observed_time_ns: r
-            .get::<_, Option<i64>>("observed_time_ns")?
-            .map(ns),
+        observed_time_ns: r.get::<_, Option<i64>>("observed_time_ns")?.map(ns),
         severity_text: r.get("severity_text")?,
         severity_number: r.get("severity_number")?,
         service_name: r.get("service_name")?,
@@ -787,9 +784,7 @@ pub fn db_stats(
     let (database_size, block_size, total_blocks, used_blocks, free_blocks, checkpoint_count) =
         query_opt(conn, "SELECT * FROM pragma_database_size()", vec![], |r| {
             Ok((
-                r.get::<_, Option<String>>("database_size")
-                    .ok()
-                    .flatten(),
+                r.get::<_, Option<String>>("database_size").ok().flatten(),
                 opt(r, "block_size"),
                 opt(r, "total_blocks"),
                 opt(r, "used_blocks"),
@@ -970,9 +965,18 @@ fn dnum(v: f64) -> Value {
 fn timestamp_to_string(unit: TimeUnit, v: i64) -> String {
     let (secs, nanos) = match unit {
         TimeUnit::Second => (v, 0u32),
-        TimeUnit::Millisecond => (v.div_euclid(1_000), (v.rem_euclid(1_000) * 1_000_000) as u32),
-        TimeUnit::Microsecond => (v.div_euclid(1_000_000), (v.rem_euclid(1_000_000) * 1_000) as u32),
-        TimeUnit::Nanosecond => (v.div_euclid(1_000_000_000), v.rem_euclid(1_000_000_000) as u32),
+        TimeUnit::Millisecond => (
+            v.div_euclid(1_000),
+            (v.rem_euclid(1_000) * 1_000_000) as u32,
+        ),
+        TimeUnit::Microsecond => (
+            v.div_euclid(1_000_000),
+            (v.rem_euclid(1_000_000) * 1_000) as u32,
+        ),
+        TimeUnit::Nanosecond => (
+            v.div_euclid(1_000_000_000),
+            v.rem_euclid(1_000_000_000) as u32,
+        ),
     };
     chrono::DateTime::from_timestamp(secs, nanos)
         .map(|d| d.format("%Y-%m-%dT%H:%M:%S%.9fZ").to_string())

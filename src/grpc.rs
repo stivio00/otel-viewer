@@ -19,10 +19,7 @@ macro_rules! export_impl {
     ($trait_name:ident, $req:ty, $resp:ty, $convert:ident, $insert:ident) => {
         #[tonic::async_trait]
         impl $trait_name for OtlpCollector {
-            async fn export(
-                &self,
-                request: Request<$req>,
-            ) -> Result<Response<$resp>, Status> {
+            async fn export(&self, request: Request<$req>) -> Result<Response<$resp>, Status> {
                 let req = request.into_inner();
                 let rows = convert::$convert(&req);
                 self.db
