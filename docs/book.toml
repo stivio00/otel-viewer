@@ -1,0 +1,9 @@
+[book]
+title = "otel-viewer"
+authors = ["Stephen Krol"]
+description = "Self-hosted OTLP collector with a built-in telemetry viewer"
+src = "."
+
+[output.html]
+git-repository-url = "https://github.com/stivio00/otel-viewer"
+edit-url-template = "https://github.com/stivio00/otel-viewer/edit/master/{path}"
