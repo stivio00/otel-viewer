@@ -5,8 +5,11 @@ Tiny example: a FastAPI echo service load-tested with [aiolocust](https://github
 ## Files
 
 - `api.py` — FastAPI app with one endpoint: `POST /api/v1/echo`
-  - Request: `{"message": "..."}` → Response: `{"message": "..."}`
-- `locustfile.py` — aiolocust `HttpUser` that posts random messages and verifies the echo
+  - Request: `{"message": "..."}` → Response: `{"message": "<message> the sum of the first 1000000 is 499999500000"}`
+  - the endpoint computes `sum(range(1_000_000))` per request, blocking the
+    single asyncio worker — deliberately CPU-heavy to drive latency
+    degradation under load
+- `locustfile.py` — aiolocust `HttpUser` that posts random messages and verifies the full echo response
 
 ## Requirements
 
@@ -85,5 +88,5 @@ Computing RPS and p95 from `locust.client.duration` (unit: seconds):
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/echo -H "Content-Type: application/json" -d '{"message": "hi"}'
-# {"message":"hi"}
+# {"message":"hi the sum of the first 1000000 is 499999500000"}
 ```

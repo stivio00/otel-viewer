@@ -14,4 +14,4 @@ class EchoResponse(BaseModel):
 
 @app.post("/api/v1/echo", response_model=EchoResponse)
 async def echo(request: EchoRequest) -> EchoResponse:
-    return EchoResponse(message=request.message)
+    return EchoResponse(message=request.message + f" the sum of the first 1000000 is {sum(range(1000000))}")
