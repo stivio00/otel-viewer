@@ -35,6 +35,8 @@ OTLP exporters ──gRPC:4317──▶ otel-viewer ──▶ DuckDB (otel-viewe
 - **Reset** — one click (well, two — it asks for confirmation) wipes all
   telemetry data.
 
+![main view](img/main_defaultview.png)
+
 ## Quickstart
 
 ```bash

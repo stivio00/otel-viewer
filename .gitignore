@@ -7,3 +7,6 @@ web/dist/
 *.duckdb.wal
 .DS_Store
 docs/book/
+__pycache__/
+*.pyc
+locust-test/.venv/

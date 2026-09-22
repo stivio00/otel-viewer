@@ -13,6 +13,13 @@ collector itself — same origin as the API, so no CORS setup is ever needed.
 | **SQL** | read-only SQL console with auto charting — see [SQL Console & Charts](sql-console.md) |
 | **Schema** | tables, columns and row counts |
 
+![main view](img/main_defaultview.png)
+
+The metric detail view draws a line chart per series and, for histograms,
+the bucket distribution of the latest point:
+
+![metric detail](img/metrics_hist.png)
+
 Layout presets (Default / Traces / Logs / Metrics / SQL) and a time-range
 selector live in the header.
 

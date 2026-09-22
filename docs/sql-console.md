@@ -26,6 +26,8 @@ chart is rendered above the table (toggle with the `chart` button):
 Tips: cast text-typed numbers with `::DOUBLE`, and alias columns
 (`AS p95_ms`) to label the lines.
 
+![sql console with auto chart](img/sql_select.png)
+
 ## Load-testing examples
 
 The built-in examples assume aiolocust telemetry (see
@@ -53,3 +55,11 @@ The panel's built-in examples also include a **latency p95 vs time** query
 and a **requests per second** query (rate = delta of `hist_count` between
 consecutive exports divided by the time between them, per endpoint series).
 Open the SQL panel's example dropdown to run them as-is.
+
+Users over time, charted automatically:
+
+![users over time](img/sql_locust_users.png)
+
+Requests per second from the cumulative histogram deltas:
+
+![requests per second](img/sql_locust_rps.png)

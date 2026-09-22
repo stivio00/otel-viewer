@@ -29,6 +29,28 @@ Docs: <https://stivio00.github.io/otel-viewer/> (source in [docs/](docs/)).
 - **Reset** — delete all telemetry data from the UI
 - Demo data seeding, CORS-free same-origin UI, live auto-refresh
 
+## Screenshots
+
+**Main view** — traces, logs and metrics side by side with live counters:
+
+![main view](docs/img/main_defaultview.png)
+
+**Metric detail** — per-series line chart plus histogram buckets:
+
+![metric detail](docs/img/metrics_hist.png)
+
+**SQL console** — auto line chart on the `locust.current_users` gauge:
+
+![sql chart](docs/img/sql_locust_users.png)
+
+## Install (desktop app)
+
+Prebuilt binaries for macOS (`.dmg`) and Windows (`.exe` installer) are
+attached to every [release](https://github.com/stivio00/otel-viewer/releases).
+Package managers: `brew install --cask otel-viewer` (macOS) and
+`winget install Stivio00.otel-viewer` (Windows) — details in the
+[installation docs](https://stivio00.github.io/otel-viewer/installation.html).
+
 ## Quickstart (server)
 
 ```bash
