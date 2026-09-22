@@ -1,0 +1,22 @@
+[project]
+name = "locust-test"
+version = "0.1.0"
+description = "Tiny FastAPI echo service + aiolocust load test example"
+readme = "README.md"
+authors = [
+    { name = "Stephen Krol", email = "krol17@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "aiolocust",
+    "fastapi",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.44.0",
+    "uvicorn",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = false
