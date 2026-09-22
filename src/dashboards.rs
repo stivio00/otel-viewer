@@ -132,10 +132,10 @@ fn build() -> BTreeMap<String, DashboardFull> {
     }
     if let Some(dir) = user_dir() {
         for (id, path) in user_files(&dir) {
-            if let Ok(bytes) = fs::read(&path) {
-                if let Some(d) = parse_doc(&id, "user", &bytes) {
-                    map.insert(id, d);
-                }
+            if let Ok(bytes) = fs::read(&path)
+                && let Some(d) = parse_doc(&id, "user", &bytes)
+            {
+                map.insert(id, d);
             }
         }
     }

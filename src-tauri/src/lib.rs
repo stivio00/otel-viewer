@@ -54,9 +54,11 @@ fn bind_with_fallback(ports: &[u16]) -> anyhow::Result<TcpListener> {
     TcpListener::bind(("127.0.0.1", 0)).context("no free listen port")
 }
 
-/// Window URL for the custom scheme. Windows (WebView2) serves custom
-/// protocols as `https://<scheme>.localhost/`; macOS/Linux use the scheme
-/// directly.
+/// Window URL for the custom scheme. Windows (WebView2) cannot serve
+/// non-standard protocols directly, so wry intercepts them via
+/// WebResourceRequested as `{http|https}://<scheme>.localhost/` — with `http`
+/// by default; `use_https_scheme(true)` on the window builder opts into the
+/// `https` form (secure context). macOS/Linux use the scheme directly.
 fn scheme_url() -> url::Url {
     if cfg!(windows) {
         url::Url::parse(&format!("https://{UI_SCHEME}.localhost/"))
@@ -117,6 +119,55 @@ fn error_response(status: u16, msg: String) -> tauri_http::Response<Cow<'static,
         .unwrap_or_else(|_| tauri_http::Response::new(Cow::Borrowed(&[] as &[u8])))
 }
 
+/// Open the app database and seed demo data if it is fresh.
+async fn open_db(db_file: &std::path::Path) -> anyhow::Result<Arc<otel_viewer::db::Db>> {
+    let db = Arc::new(otel_viewer::db::Db::new(db_file.to_str()).await?);
+    let n = otel_viewer::demo::seed_if_empty(&db).await?;
+    if n > 0 {
+        eprintln!("[otel-viewer] seeded {n} demo rows");
+    }
+    anyhow::Ok(db)
+}
+
+/// DuckDB raises an IO "lock" error when another process (typically the
+/// otel-viewer CLI or a second copy of the desktop app) already has the
+/// database file open — recoverable once that process exits.
+fn is_lock_conflict(e: &anyhow::Error) -> bool {
+    format!("{e:#}").to_lowercase().contains("lock")
+}
+
+/// Blocking native alert for the lock-conflict case: Retry re-attempts the
+/// open (after the user closed the other otel-viewer process), Quit exits.
+fn lock_conflict_dialog(e: &anyhow::Error) -> bool {
+    matches!(
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_buttons(rfd::MessageButtons::OkCancelCustom(
+                "Retry".into(),
+                "Quit".into()
+            ))
+            .set_title("otel-viewer — database is locked")
+            .set_description(format!(
+                "Another otel-viewer process (e.g. the otel-viewer CLI or a \
+                 second copy of this app) already has the database open.\n\n\
+                 Close that process, then press Retry.\n\n{e:#}"
+            ))
+            .show(),
+        rfd::MessageDialogResult::Custom(button) if button == "Retry"
+    )
+}
+
+/// Blocking native alert for unrecoverable setup failures; the app exits
+/// once it is dismissed.
+fn fatal_dialog(title: &str, description: &str) {
+    rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Error)
+        .set_buttons(rfd::MessageButtons::Ok)
+        .set_title(title)
+        .set_description(description)
+        .show();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -150,15 +201,31 @@ pub fn run() {
                 .build()?;
 
             // Open the database and build the REST router before the window
-            // loads, so the first scheme request is always answerable.
-            let db = runtime.block_on(async {
-                let db = Arc::new(otel_viewer::db::Db::new(db_file.to_str()).await?);
-                let n = otel_viewer::demo::seed_if_empty(&db).await?;
-                if n > 0 {
-                    eprintln!("[otel-viewer] seeded {n} demo rows");
+            // loads, so the first scheme request is always answerable. A
+            // lock conflict (another otel-viewer process holds the file) is
+            // recoverable: ask the user to close it and retry instead of
+            // panicking into a crash report.
+            let db = loop {
+                match runtime.block_on(open_db(&db_file)) {
+                    Ok(db) => break db,
+                    Err(e) if is_lock_conflict(&e) => {
+                        eprintln!("[otel-viewer] database is locked: {e:#}");
+                        if !lock_conflict_dialog(&e) {
+                            app.handle().exit(1);
+                            return Ok(());
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[otel-viewer] cannot open database: {e:#}");
+                        fatal_dialog(
+                            "otel-viewer — cannot open database",
+                            &format!("Failed to open {}:\n\n{e:#}", db_file.display()),
+                        );
+                        app.handle().exit(1);
+                        return Ok(());
+                    }
                 }
-                anyhow::Ok(db)
-            })?;
+            };
             app.manage(UiRouter(otel_viewer::api::router(
                 db.clone(),
                 otel_viewer::api::Meta { otlp_addr },
@@ -180,6 +247,9 @@ pub fn run() {
                 .title("otel-viewer")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(960.0, 600.0)
+                // Windows: make the webview intercept the custom scheme in
+                // its `https://otelview.localhost/` form (see scheme_url).
+                .use_https_scheme(true)
                 .build()?;
             Ok(())
         })
@@ -187,14 +257,17 @@ pub fn run() {
         .expect("failed to build tauri application")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                let state = app.state::<Mutex<Server>>();
-                let mut server = state.lock().unwrap();
-                if let Some(token) = server.shutdown.take() {
-                    token.cancel();
-                }
-                if let Some(rt) = server.runtime.take() {
-                    // Let the collector drain (DuckDB flush) before exit.
-                    rt.shutdown_timeout(Duration::from_secs(2));
+                // Early-exit paths (fatal dialog before setup finished)
+                // never manage Server.
+                if let Some(state) = app.try_state::<Mutex<Server>>() {
+                    let mut server = state.lock().unwrap();
+                    if let Some(token) = server.shutdown.take() {
+                        token.cancel();
+                    }
+                    if let Some(rt) = server.runtime.take() {
+                        // Let the collector drain (DuckDB flush) before exit.
+                        rt.shutdown_timeout(Duration::from_secs(2));
+                    }
                 }
             }
         });

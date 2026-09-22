@@ -1,6 +1,6 @@
 [package]
 name = "otel-viewer-tauri"
-version = "0.1.3"
+version = "0.1.4"
 description = "otel-viewer: all-in-one desktop app (OTLP collector + DuckDB + web UI)"
 edition = "2021"
 
@@ -21,6 +21,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 anyhow = "1"
 url = "2"
+rfd = { version = "0.17", features = ["common-controls-v6"] }
 
 [profile.release]
 codegen-units = 1

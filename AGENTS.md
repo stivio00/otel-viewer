@@ -113,5 +113,10 @@ point its window at the local HTTP server. It uses the custom
 `otelview://` scheme (`register_asynchronous_uri_scheme_protocol` in
 `src-tauri/src/lib.rs`) which calls the axum router in-process
 (`otel_viewer::run_with_db` shares the `Db`). On Windows the same scheme is
-served as `https://otelview.localhost/` (WebView2 convention). External
+served as `https://otelview.localhost/` — WebView2 intercepts custom
+protocols via WebResourceRequested as `{http|https}://<scheme>.localhost`
+with `http` as the **default**; the `https` form used here requires
+`.use_https_scheme(true)` on the `WebviewWindowBuilder` (without it the
+window navigates to `https://otelview.localhost/`, matches nothing and shows
+"not reachable"). External
 browser/curl access to `http://127.0.0.1:6666` keeps working.

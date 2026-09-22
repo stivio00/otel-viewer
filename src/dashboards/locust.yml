@@ -86,7 +86,7 @@ panels:
     type: dial
     unit: users
     sql: |
-      SELECT ts_ns, coalesce(value_double, value_int) AS users
+      SELECT coalesce(value_double, value_int) AS users
       FROM metric_points
       WHERE metric_name = 'locust.current_users'
         AND ('$service' IS NULL OR service_name = '$service')
