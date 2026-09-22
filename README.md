@@ -47,8 +47,7 @@ Docs: <https://stivio00.github.io/otel-viewer/> (source in [docs/](docs/)).
 
 Prebuilt binaries for macOS (`.dmg`) and Windows (`.exe` installer) are
 attached to every [release](https://github.com/stivio00/otel-viewer/releases).
-Package managers: `brew install --cask otel-viewer` (macOS) and
-`winget install Stivio00.otel-viewer` (Windows) — details in the
+Package managers: `brew trust stivio00/otel-viewer && brew tap stivio00/otel-viewer && brew install --cask otel-viewer` (macOS, custom tap) and `winget install Stivio00.otel-viewer` (Windows, once the community manifest is merged) — details in the
 [installation docs](https://stivio00.github.io/otel-viewer/installation.html).
 
 ## Quickstart (server)
@@ -71,6 +70,15 @@ realistic telemetry see [locust-test/](locust-test/README.md).
 
 Ports fall back automatically (6666→6670, 4317→4321, then OS-assigned);
 actual addresses are in `GET /api/health`.
+
+## Quickstart (docker)
+
+```bash
+docker compose up -d --build    # UI on :8080, OTLP on :4317, API on :6666
+```
+
+Details in [docs/docker.md](docs/docker.md); prebuilt images on GHCR
+(`ghcr.io/stivio00/otel-viewer`, `ghcr.io/stivio00/otel-viewer-web`).
 
 ## Quickstart (desktop app)
 

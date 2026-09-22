@@ -5,21 +5,24 @@ on the [releases page](https://github.com/stivio00/otel-viewer/releases):
 a `.dmg` for macOS (Apple Silicon) and a setup `.exe` installer (NSIS) for
 Windows x64. Package-manager installs are available via Homebrew and winget.
 
-## macOS — Homebrew
+## macOS — Homebrew (custom tap)
 
-Once the cask is published to homebrew-cask:
+The desktop app is distributed through the project's own Homebrew tap:
 
 ```sh
+brew trust stivio00/otel-viewer        # once — brew 7+ distrusts new taps by default
+brew tap stivio00/otel-viewer
 brew install --cask otel-viewer
 ```
 
-Upgrade with `brew upgrade --cask otel-viewer` whenever a new version is
-tagged.
+Upgrades follow the usual `brew upgrade --cask otel-viewer` whenever a new
+version is released. The tap lives at
+[stivio00/homebrew-otel-viewer](https://github.com/stivio00/homebrew-otel-viewer).
 
-> Not in homebrew-cask yet? Until the cask PR lands, download the latest
-> `otel-viewer_<version>_aarch64.dmg` from the
-> [releases page](https://github.com/stivio00/otel-viewer/releases),
-> open it and drag **otel-viewer.app** into `/Applications`.
+> A submission to the central `homebrew-cask` repository additionally
+> requires the project to meet Homebrew's notability bar (75+ stars or
+> 30+ forks/watchers) and ideally a signed + notarized binary — until then
+> the custom tap is the official channel.
 
 ## Windows — winget
 

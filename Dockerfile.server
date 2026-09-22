@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-bookworm-slim AS webbuild
+RUN corepack enable
+WORKDIR /build
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+COPY web .
+RUN pnpm build
+
+FROM rust:1-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends cmake clang && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY Cargo.toml Cargo.lock build.rs ./
+COPY src ./src
+COPY proto ./proto
+COPY --from=webbuild /build/dist ./web/dist
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --bin otel-viewer -j 4 && \
+    cp target/release/otel-viewer /usr/local/bin/otel-viewer
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* && \
+    useradd -m -u 10001 otel && mkdir -p /data && chown otel:otel /data
+COPY --from=build /usr/local/bin/otel-viewer /usr/local/bin/otel-viewer
+USER otel
+VOLUME /data
+EXPOSE 6666 4317
+ENTRYPOINT ["/usr/local/bin/otel-viewer", "--host", "0.0.0.0:6666", "--file", "/data/otel-viewer.duckdb"]

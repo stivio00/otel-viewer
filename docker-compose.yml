@@ -1,0 +1,26 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: ghcr.io/stivio00/otel-viewer:latest
+    restart: unless-stopped
+    ports:
+      - "6666:6666"   # REST API + embedded UI (optional direct access)
+      - "4317:4317"   # OTLP/gRPC receiver
+    volumes:
+      - otel-data:/data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: ghcr.io/stivio00/otel-viewer-web:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"     # nginx serving the built SPA, /api proxied to server
+    depends_on:
+      - server
+
+volumes:
+  otel-data:

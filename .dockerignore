@@ -1,0 +1,12 @@
+.git
+target
+src-tauri/target
+node_modules
+web/node_modules
+web/dist
+docs/book
+*.duckdb
+*.duckdb.wal
+.DS_Store
+locust-test/.venv
+__pycache__
