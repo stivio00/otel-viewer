@@ -38,6 +38,7 @@ pub fn router(db: Arc<Db>, meta: Meta) -> Router {
         .route("/api/metrics", get(metrics))
         .route("/api/metrics/{name}", get(metric_detail))
         .route("/api/query", post(query))
+        .route("/api/reset", post(reset))
         .fallback(not_found_or_static)
         .layer(CorsLayer::very_permissive())
         .layer(axum::Extension(meta))
@@ -147,6 +148,12 @@ async fn query(
         .read(move |conn| queries::run_query(conn, &body.sql, max_rows))
         .await?;
     Ok(Json(res))
+}
+
+/// Delete all telemetry data (spans, logs, metric points).
+async fn reset(State(db): State<Arc<Db>>) -> Result<Json<serde_json::Value>, ApiError> {
+    db.reset().await.map_err(|e| ApiError::Bad(anyhow::anyhow!(e)))?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
 // ---------------------------------------------------------------------------

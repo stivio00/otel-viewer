@@ -13,6 +13,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 otel-viewer = { path = ".." }
+axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["full"] }

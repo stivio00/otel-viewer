@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query"
-import { Activity, Moon, RefreshCw, Sun } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { Activity, Moon, RefreshCw, Sun, Trash2 } from "lucide-react"
 
-import { fetchHealth, fetchStats } from "@/lib/api"
+import { fetchHealth, fetchStats, resetDb } from "@/lib/api"
 import { useUi, type Preset, type TimeRange } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import {
@@ -57,6 +57,18 @@ export function AppHeader() {
   const timeRange = useUi((s) => s.timeRange)
   const setTimeRange = useUi((s) => s.setTimeRange)
   const refresh = useUi((s) => s.refresh)
+  const queryClient = useQueryClient()
+
+  const onReset = async () => {
+    if (!window.confirm("Delete ALL telemetry data (spans, logs, metrics)?")) return
+    try {
+      await resetDb()
+      await queryClient.invalidateQueries()
+      refresh()
+    } catch (e) {
+      window.alert(`Reset failed: ${e}`)
+    }
+  }
 
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-40 flex h-12 shrink-0 items-center gap-3 border-b px-3 backdrop-blur">
@@ -128,6 +140,20 @@ export function AppHeader() {
             </Button>
           </TooltipTrigger>
           <TooltipContent>Refresh data</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-destructive hover:text-destructive"
+              onClick={onReset}
+            >
+              <Trash2 />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Reset database — delete all data</TooltipContent>
         </Tooltip>
 
         <Tooltip>

@@ -13,6 +13,7 @@ enum DbJob {
     Spans(Vec<SpanRow>),
     Logs(Vec<LogRow>),
     Metrics(Vec<MetricPointRow>),
+    Reset,
 }
 
 pub struct Db {
@@ -69,6 +70,11 @@ impl Db {
 
     pub async fn insert_metrics(&self, rows: Vec<MetricPointRow>) -> Result<(), String> {
         self.send_job(DbJob::Metrics(rows)).await
+    }
+
+    /// Delete all telemetry rows (spans, logs, metric points).
+    pub async fn reset(&self) -> Result<(), String> {
+        self.send_job(DbJob::Reset).await
     }
 
     async fn send_job(&self, job: DbJob) -> Result<(), String> {
@@ -134,6 +140,9 @@ fn run_job(conn: &mut Connection, (job, ack): (DbJob, Ack)) {
             DbJob::Spans(rows) => rows::insert_spans(&tx, rows).map_err(es)?,
             DbJob::Logs(rows) => rows::insert_logs(&tx, rows).map_err(es)?,
             DbJob::Metrics(rows) => rows::insert_metrics(&tx, rows).map_err(es)?,
+            DbJob::Reset => tx
+                .execute_batch("DELETE FROM spans; DELETE FROM log_records; DELETE FROM metric_points;")
+                .map_err(es)?,
         }
         tx.commit().map_err(es)
     })();

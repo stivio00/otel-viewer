@@ -42,6 +42,18 @@ pub async fn run(
         }
     }
 
+    run_with_db(db, http_listener, grpc_listener, shutdown).await
+}
+
+/// Like [`run`], but with an existing database handle (seeding is the
+/// caller's job). The desktop shell uses this so it can also serve the
+/// REST router to its webview in-process, sharing the same database.
+pub async fn run_with_db(
+    db: std::sync::Arc<db::Db>,
+    http_listener: TcpListener,
+    grpc_listener: TcpListener,
+    shutdown: CancellationToken,
+) -> anyhow::Result<()> {
     let http_listener = {
         let l = http_listener;
         l.set_nonblocking(true)?;

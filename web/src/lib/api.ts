@@ -277,3 +277,11 @@ export const fetchHealth = () => get<Health>("/api/health")
 export const fetchStats = () => get<Stats>("/api/stats")
 export const fetchServices = () => get<{ services: ServiceInfo[] }>("/api/services")
 export const fetchSchema = () => get<Schema>("/api/schema")
+
+export async function resetDb(): Promise<void> {
+  const res = await fetch("/api/reset", { method: "POST" })
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new Error(`${res.status}: ${body || res.statusText}`)
+  }
+}
